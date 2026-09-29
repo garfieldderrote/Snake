@@ -31,6 +31,7 @@ pub trait SnakeWorld {
     fn get_height(&self) -> i32;
     fn board(&self) -> &Board;
     fn board_mut(&mut self) -> &mut Board;
+    fn new_snake(&mut self, id: PlayerId);
 }
 
 impl Snake {

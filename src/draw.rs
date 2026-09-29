@@ -14,7 +14,7 @@ pub fn draw_board<W: SnakeWorld>(world: &mut W) {
             match world.get_cell_at(IVec2::new(x, y)) {
                 Cell::Empty => print!(". "),
                 Cell::Apple => print!("{}", "0 ".red()),
-                Cell::Snake(_) => print!("# "),
+                Cell::Snake(_) => print!("{}", "# ".blue()),
             }
         }
         println!();

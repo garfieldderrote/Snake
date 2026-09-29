@@ -7,7 +7,8 @@ use std::{
 use crate::{
     board::{Board, BoardSystem},
     draw::draw_board,
-    input::Input,
+    input::{self, Input},
+    networking::Network,
     snake::{Snake, SnakeSystem, SnakeWorld},
     util::{Cell, GameEnding, IVec2},
 };
@@ -27,7 +28,7 @@ pub struct MultiplayerWorld {
     pub board: Board,
     pub snakes: HashMap<PlayerId, Snake>,
 }
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PlayerId(pub u64);
 
 impl SnakeWorld for MultiplayerWorld {
@@ -71,6 +72,9 @@ impl SnakeWorld for MultiplayerWorld {
     fn board_mut(&mut self) -> &mut Board {
         &mut self.board
     }
+    fn new_snake(&mut self, id: PlayerId) {
+        self.snakes.insert(id, Snake::new(IVec2::new(10, 12), 3));
+    }
 }
 
 // impl SnakeWorld for World {
@@ -112,14 +116,19 @@ impl SnakeWorld for MultiplayerWorld {
 // }
 
 impl GameSystem {
-    pub fn run<W: SnakeWorld>(game: &mut Game<W>, input: &mut Input) -> GameEnding {
+    pub fn run<W: SnakeWorld>(
+        game: &mut Game<W>,
+        input: &mut Input,
+        network: &mut Network,
+    ) -> GameEnding {
         let mut last_update = Instant::now();
         while !input.should_quit {
             sleep(time::Duration::from_millis(50));
             input.fetch();
+            network.receive();
             if last_update.elapsed() >= Duration::from_millis(200) {
-                GameSystem::tick(&mut game.world, input);
-                // if !SnakeSystem::alive(&game.world.snake()) {
+                GameSystem::tick(&mut game.world, input, network);
+                // if !SnakeSystem::alive(game.world.snake(&PlayerId(0)).unwrap()) {
                 //     return GameEnding::Failure;
                 // }
                 draw_board(&mut game.world);
@@ -128,9 +137,16 @@ impl GameSystem {
         }
         GameEnding::Misc
     }
-    pub fn tick<W: SnakeWorld>(world: &mut W, input: &mut Input) {
+    pub fn tick<W: SnakeWorld>(world: &mut W, input: &mut Input, network: &mut Network) {
         let input_dir = input.get_dir();
-        SnakeSystem::tick(world, input_dir, &PlayerId(0));
+        let players = network.get_players().clone();
+        for player in players {
+            if world.snake(&player).is_none() {
+                world.new_snake(player);
+            }
+            let input_dir = network.get_input_player(player);
+            SnakeSystem::tick(world, input_dir, &player);
+        }
         BoardSystem::tick(world);
     }
 }
@@ -146,11 +162,10 @@ impl Game<MultiplayerWorld> {
     // }
     pub fn new() -> Self {
         let mut snakes: HashMap<PlayerId, Snake> = HashMap::new();
-        snakes.insert(PlayerId(0), Snake::new(IVec2::new(10, 12), 3));
 
         Game {
             world: MultiplayerWorld {
-                board: Board::new(25, 25, 10),
+                board: Board::new(25, 25, 100),
                 snakes,
             },
         }
