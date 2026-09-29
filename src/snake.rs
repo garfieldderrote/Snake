@@ -1,4 +1,8 @@
-use crate::util::{Cell, Dir, IVec2};
+use crate::{
+    board::Board,
+    game::PlayerId,
+    util::{Cell, Dir, IVec2},
+};
 
 struct Segment {
     dir: Dir,
@@ -18,13 +22,15 @@ pub struct Snake {
 }
 
 pub trait SnakeWorld {
-    fn snake(&self) -> &Snake;
-    fn snake_mut(&mut self) -> &mut Snake;
+    fn snake(&self, player: &PlayerId) -> Option<&Snake>;
+    fn snake_mut(&mut self, player: &PlayerId) -> Option<&mut Snake>;
     fn get_cell_at(&self, pos: IVec2) -> Cell;
     fn is_valid_pos(&self, pos: IVec2) -> bool;
     fn remove_apple(&mut self, pos: IVec2);
     fn get_width(&self) -> i32;
     fn get_height(&self) -> i32;
+    fn board(&self) -> &Board;
+    fn board_mut(&mut self) -> &mut Board;
 }
 
 impl Snake {
@@ -65,10 +71,12 @@ impl Snake {
 pub struct SnakeSystem;
 
 impl SnakeSystem {
-    pub fn tick<W: SnakeWorld>(world: &mut W, dir: Option<Dir>) {
-        SnakeSystem::move_in_dir(world.snake_mut(), dir);
-        SnakeSystem::update_state(world);
-        SnakeSystem::handle_state(world);
+    pub fn tick<W: SnakeWorld>(world: &mut W, dir: Option<Dir>, player: &PlayerId) {
+        if let Some(snake) = world.snake_mut(player) {
+            SnakeSystem::move_in_dir(snake, dir);
+            SnakeSystem::update_state(world, player);
+            SnakeSystem::handle_state(world, player);
+        }
     }
     pub fn move_in_dir(snake: &mut Snake, dir: Option<Dir>) {
         if let Some(dir) = dir {
@@ -93,29 +101,39 @@ impl SnakeSystem {
         }
     }
 
-    pub fn update_state<W: SnakeWorld>(world: &mut W) {
-        let head_pos = world.snake().get_head_pos();
+    pub fn update_state<W: SnakeWorld>(world: &mut W, player: &PlayerId) {
+        let state;
+        let head_pos = world.snake(player).unwrap().get_head_pos();
         if !world.is_valid_pos(head_pos) {
-            world.snake_mut().state = SnakeState::Crashed;
-            return;
-        }
-        match world.get_cell_at(head_pos) {
-            Cell::Empty => world.snake_mut().state = SnakeState::Alive,
-            Cell::Snake(i) => {
-                if i != 0 {
-                    world.snake_mut().state = SnakeState::Crashed
-                } else {
-                    world.snake_mut().state = SnakeState::Alive
+            state = SnakeState::Crashed;
+        } else {
+            match world.get_cell_at(head_pos) {
+                Cell::Empty => state = SnakeState::Alive,
+                Cell::Snake(i) => {
+                    if i != 0 {
+                        state = SnakeState::Crashed
+                    } else {
+                        state = SnakeState::Alive
+                    }
                 }
+                Cell::Apple => state = SnakeState::Eating,
             }
-            Cell::Apple => world.snake_mut().state = SnakeState::Eating,
+        }
+        if let Some(snake) = world.snake_mut(player) {
+            snake.state = state;
         }
     }
-    pub fn handle_state<W: SnakeWorld>(world: &mut W) {
-        match world.snake().state {
+    pub fn handle_state<W: SnakeWorld>(world: &mut W, player: &PlayerId) {
+        if world.snake_mut(player).is_some() {
+        } else {
+            return;
+        }
+        let snake = world.snake_mut(player).unwrap();
+
+        match snake.state {
             SnakeState::Eating => {
-                world.remove_apple(world.snake().get_head_pos());
-                SnakeSystem::grow(world.snake_mut());
+                world.remove_apple(world.snake(player).unwrap().get_head_pos());
+                SnakeSystem::grow(world.snake_mut(player).unwrap());
             }
             SnakeState::Alive => {}
             SnakeState::Crashed => {}

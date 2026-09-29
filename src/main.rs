@@ -11,7 +11,8 @@ mod input;
 mod snake;
 mod util;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut game = Game::new();
     let mut input = Input::new();
     let result = GameSystem::run(&mut game, &mut input);

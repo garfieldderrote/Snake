@@ -1,7 +1,7 @@
 use rand::RngExt;
 
 use crate::{
-    game::{GameSystem, World},
+    snake::SnakeWorld,
     util::{Cell, IVec2},
 };
 
@@ -39,32 +39,32 @@ impl Board {
     }
 }
 impl BoardSystem {
-    pub fn tick(world: &mut World) {
+    pub fn tick<W: SnakeWorld>(world: &mut W) {
         BoardSystem::spawn_apples(world);
     }
-    fn spawn_apples(world: &mut World) {
+    fn spawn_apples<W: SnakeWorld>(world: &mut W) {
         let mut rng = rand::rng();
         loop {
-            if world.board.apples.len() >= world.board.num_apples as usize {
+            if world.board().apples.len() >= world.board().num_apples as usize {
                 break;
             }
             let pos = IVec2::new(
-                rng.random_range(0..world.board.get_width()),
-                rng.random_range(0..world.board.get_height()),
+                rng.random_range(0..world.get_width()),
+                rng.random_range(0..world.get_height()),
             );
-            match GameSystem::get_cell_at(world, pos) {
+            match world.get_cell_at(pos) {
                 Cell::Empty => {}
                 Cell::Apple => continue,
                 Cell::Snake(_) => continue,
             };
-            if world.board.apples.contains(&pos) {
+            if world.board().apples.contains(&pos) {
                 continue;
             }
-            world.board.apples.push(pos);
+            world.board_mut().apples.push(pos);
         }
     }
 
-    pub fn remove_apple_at(world: &mut World, pos: IVec2) {
-        world.board.apples.retain(|apple| *apple != pos);
+    pub fn remove_apple_at<W: SnakeWorld>(world: &mut W, pos: IVec2) {
+        world.board_mut().apples.retain(|apple| *apple != pos);
     }
 }
