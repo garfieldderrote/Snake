@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     board::{Board, BoardSystem},
-    draw::draw_board,
-    input::{self, Input},
-    networking::Network,
+    server::network::Network,
     snake::{Snake, SnakeSystem, SnakeWorld},
     util::{Cell, GameEnding, IVec2},
 };
@@ -120,6 +118,7 @@ impl SnakeWorld for MultiplayerWorld {
 impl GameSystem {
     pub fn run<W: SnakeWorld>(game: &mut Game<W>, network: &mut Network) -> GameEnding {
         let mut last_update = Instant::now();
+
         loop {
             sleep(time::Duration::from_millis(50));
             network.receive();
@@ -128,7 +127,7 @@ impl GameSystem {
                 // if !SnakeSystem::alive(game.world.snake(&PlayerId(0)).unwrap()) {
                 //     return GameEnding::Failure;
                 // }
-                draw_board(&mut game.world);
+                //draw_board(&mut game.world);
                 last_update = Instant::now();
             }
         }
@@ -136,13 +135,17 @@ impl GameSystem {
     }
     pub fn tick<W: SnakeWorld>(world: &mut W, network: &mut Network) {
         let players = network.get_players().clone();
+        let mut snakes = Vec::new();
         for player in players {
             if world.snake(&player).is_none() {
                 world.new_snake(player);
             }
             let input_dir = network.get_input_player(player);
             SnakeSystem::tick(world, input_dir, &player);
+            snakes.push(world.snake(&player).unwrap().clone());
         }
+
+        network.send_game_state(world.board().clone(), snakes);
         BoardSystem::tick(world);
     }
 }

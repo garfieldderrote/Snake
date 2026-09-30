@@ -1,20 +1,25 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     board::Board,
-    game::PlayerId,
+    server::game::PlayerId,
     util::{Cell, Dir, IVec2},
 };
 
+#[derive(Clone, Serialize, Deserialize)]
 struct Segment {
     dir: Dir,
     pos: IVec2,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub enum SnakeState {
     Alive,
     Crashed,
     Eating,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Snake {
     state: SnakeState,
     segments: Vec<Segment>,

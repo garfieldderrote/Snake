@@ -1,4 +1,5 @@
 use rand::RngExt;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     snake::SnakeWorld,
@@ -7,6 +8,7 @@ use crate::{
 
 pub struct BoardSystem;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
     size: (i32, i32),
     apples: Vec<IVec2>,

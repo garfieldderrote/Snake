@@ -1,39 +1,52 @@
 use std::{thread::sleep, time::Duration};
 
-use tokio::{io::AsyncWriteExt, net::TcpStream};
-
 use crate::{
-    game::{Game, GameSystem},
-    input::Input,
-    networking::Network,
+    client::input::Input,
+    server::{
+        game::{Game, GameSystem},
+        network::Network,
+    },
     util::GameEnding,
 };
 
 mod board;
-mod draw;
-mod game;
-mod input;
-mod networking;
+mod client;
+mod server;
 mod snake;
 mod util;
 
 #[tokio::main]
 async fn main() {
-    // tokio::spawn(async move {
-    //     sleep(Duration::from_millis(100));
-    //     if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9000").await {
-    //         sleep(Duration::from_millis(1000));
-    //         _ = stream.write_all(b"up\n").await;
-    //         _ = stream.write_all(b"left\n").await;
-    //         _ = stream.write_all(b"down\n").await;
-    //     }
-    // });
+    tokio::task::spawn_blocking(|| {
+        host();
+        loop {
+            sleep(Duration::from_millis(100));
+            println!("\rHello from blocking");
+        }
+    });
+
+    join().await;
+    std::future::pending::<()>().await;
+}
+
+async fn join() {
+    println!("\r[Client] Init Input");
+    let input = Input::new();
+    println!("\r[Client] Init Network");
+    let network = client::network::Network::new().await;
+    if let Some(network) = network {
+        println!("\r[Client] Spawn Threads");
+        network.spawn_threads(input);
+    } else {
+        print!("\r[Client] Connection Failed");
+    }
+}
+
+fn host() {
     let mut network = Network::new();
-    println!("Initialized Network");
+    println!("\r[Server] Initialized Network");
     let mut game = Game::new();
-    Input::spawn_thread();
     let result = GameSystem::run(&mut game, &mut network);
-    Input::clean();
     match result {
         GameEnding::Victory => print_victory(),
         GameEnding::Failure => print_gameover(),
