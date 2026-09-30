@@ -1,9 +1,10 @@
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::{
-    board::{self, Board},
-    snake::{self, Snake},
+    board::Board,
+    server::game::PlayerId,
+    snake::Snake,
     util::{Cell, IVec2},
 };
 
@@ -46,6 +47,11 @@ impl DrawWorld for ClientWorld {
     }
 }
 
+fn get_player_skin(player: PlayerId) -> ColoredString {
+    let player_skins = vec!["# ".blue(), "# ".green(), "# ".yellow()];
+    player_skins[player.0 as usize % player_skins.len()].clone()
+}
+
 pub fn draw_board<W: DrawWorld>(world: &mut W) {
     _ = disable_raw_mode();
     print!("\x1B[3J\x1B[2J\x1B[H");
@@ -54,7 +60,7 @@ pub fn draw_board<W: DrawWorld>(world: &mut W) {
             match world.get_cell_at(IVec2::new(x, y)) {
                 Cell::Empty => print!(". "),
                 Cell::Apple => print!("{}", "0 ".red()),
-                Cell::Snake(_) => print!("{}", "# ".blue()),
+                Cell::Snake(_, player) => print!("{}", get_player_skin(player)),
             }
         }
         println!();

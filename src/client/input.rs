@@ -1,26 +1,29 @@
-use std::{collections::VecDeque, thread::sleep, time::Duration};
+use std::{collections::VecDeque, time::Duration};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::util::Dir;
 
 pub struct Input {
     pub should_quit: bool,
     pub input_buffer: VecDeque<char>,
+    pub shutdown: CancellationToken,
 }
 
 impl Input {
     pub fn clean() {
         _ = disable_raw_mode();
     }
-    pub fn new() -> Self {
+    pub fn new(shutdown: CancellationToken) -> Self {
         _ = enable_raw_mode();
         Input {
             should_quit: false,
             input_buffer: VecDeque::new(),
+            shutdown,
         }
     }
     pub fn fetch(&mut self) -> Option<()> {
@@ -58,5 +61,6 @@ fn check_quit_button(input: &mut Input, key: KeyEvent) {
     };
     if quit_pressed {
         input.should_quit = true;
+        input.shutdown.cancel();
     }
 }

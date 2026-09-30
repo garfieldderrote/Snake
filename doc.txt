@@ -1,0 +1,5 @@
+overall structure:
+
+main launches host() and join()
+
+host() is for the server it launches GameSystem::run()

@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     board::{Board, BoardSystem},
@@ -19,10 +20,10 @@ pub struct Game<W: SnakeWorld> {
     world: W,
 }
 
-pub struct World {
-    pub board: Board,
-    pub snake: Snake,
-}
+// pub struct World {
+//     pub board: Board,
+//     pub snake: Snake,
+// }
 
 pub struct MultiplayerWorld {
     pub board: Board,
@@ -51,6 +52,20 @@ impl SnakeWorld for MultiplayerWorld {
         }
         Cell::Empty
     }
+    fn get_cells_at(&self, pos: IVec2) -> Vec<Cell> {
+        let mut cells = Vec::new();
+        let cell = self.board.get_apple_at(pos);
+        if cell != Cell::Empty {
+            cells.push(cell);
+        }
+        for snake in self.snakes.values() {
+            let cell = snake.get_segment_pos_at(pos);
+            if cell != Cell::Empty {
+                cells.push(cell);
+            }
+        }
+        cells
+    }
     fn is_valid_pos(&self, pos: IVec2) -> bool {
         pos.x < self.board.get_width()
             && pos.y < self.board.get_height()
@@ -73,7 +88,11 @@ impl SnakeWorld for MultiplayerWorld {
         &mut self.board
     }
     fn new_snake(&mut self, id: PlayerId) {
-        self.snakes.insert(id, Snake::new(IVec2::new(10, 12), 3));
+        self.snakes
+            .insert(id, Snake::new(IVec2::new(10, 12), 5, id));
+    }
+    fn remove_snake(&mut self, id: &PlayerId) {
+        self.snakes.remove(id);
     }
 }
 
@@ -116,10 +135,14 @@ impl SnakeWorld for MultiplayerWorld {
 // }
 
 impl GameSystem {
-    pub fn run<W: SnakeWorld>(game: &mut Game<W>, network: &mut Network) -> GameEnding {
+    pub fn run<W: SnakeWorld>(
+        game: &mut Game<W>,
+        network: &mut Network,
+        shutdown: CancellationToken,
+    ) -> GameEnding {
         let mut last_update = Instant::now();
 
-        loop {
+        while !shutdown.is_cancelled() {
             sleep(time::Duration::from_millis(50));
             network.receive();
             if last_update.elapsed() >= Duration::from_millis(200) {
@@ -131,7 +154,7 @@ impl GameSystem {
                 last_update = Instant::now();
             }
         }
-        //GameEnding::Misc
+        GameEnding::Misc
     }
     pub fn tick<W: SnakeWorld>(world: &mut W, network: &mut Network) {
         let players = network.get_players().clone();
@@ -142,7 +165,9 @@ impl GameSystem {
             }
             let input_dir = network.get_input_player(player);
             SnakeSystem::tick(world, input_dir, &player);
-            snakes.push(world.snake(&player).unwrap().clone());
+            if world.snake(&player).is_some() {
+                snakes.push(world.snake(&player).unwrap().clone());
+            }
         }
 
         network.send_game_state(world.board().clone(), snakes);
@@ -160,7 +185,7 @@ impl Game<MultiplayerWorld> {
     //     }
     // }
     pub fn new() -> Self {
-        let mut snakes: HashMap<PlayerId, Snake> = HashMap::new();
+        let snakes: HashMap<PlayerId, Snake> = HashMap::new();
 
         Game {
             world: MultiplayerWorld {

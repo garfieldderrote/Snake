@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::server::game::PlayerId;
+
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct IVec2 {
     pub x: i32,
@@ -30,7 +32,7 @@ pub enum Dir {
 pub enum Cell {
     Empty,
     Apple,
-    Snake(i32),
+    Snake(i32, PlayerId),
 }
 
 pub enum GameEnding {

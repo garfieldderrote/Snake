@@ -1,0 +1,8 @@
+- Snake Killing ✅
+- Points
+- Rounds
+- Player disconnecting
+- optimize Network traffic
+    - send differences not entire board
+    - client prediction?
+- Graphics?

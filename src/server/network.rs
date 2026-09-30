@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use tokio_util::sync::CancellationToken;
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -38,21 +39,26 @@ enum Packet {
 }
 
 impl Network {
-    pub fn new() -> Self {
-        let (tx, mut rx) = mpsc::channel::<Packet>(100);
+    pub fn new(shutdown: CancellationToken) -> Self {
+        let (tx, rx) = mpsc::channel::<Packet>(100);
         let network = Network {
             receiver: rx,
             senders: HashMap::new(),
             buffer: HashMap::new(),
             players: Vec::new(),
         };
-
+        let listener_shutdown = shutdown.clone();
         tokio::spawn(async move {
-            let listener = TcpListener::bind("127.0.0.1:9000").await.unwrap();
+            let listener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
             println!("[Server/Network] Init Bind");
             let mut next_player_id = 0u64;
             loop {
-                let (socket, _) = listener.accept().await.unwrap();
+                let (socket, _) = tokio::select! {
+                    Ok(socket) = listener.accept() => socket,
+                    _ = listener_shutdown.cancelled() => {
+                        break;
+                    }
+                };
 
                 let player_id = PlayerId(next_player_id);
                 next_player_id += 1;
@@ -66,8 +72,11 @@ impl Network {
                         sender: out_tx,
                     })
                     .await;
+                let handler_shutdown = shutdown.clone();
 
-                tokio::spawn(async move { handle_connection(socket, player_id, tx, out_rx).await });
+                tokio::spawn(async move {
+                    handle_connection(socket, player_id, tx, out_rx, handler_shutdown).await
+                });
             }
         });
         network
@@ -77,9 +86,7 @@ impl Network {
             if self.buffer.len() <= 2
                 && let Packet::Direction { player, dir } = input
             {
-                if !self.buffer.contains_key(&player) {
-                    self.buffer.insert(player, VecDeque::new());
-                }
+                self.buffer.entry(player).or_insert_with(|| VecDeque::new());
                 self.buffer.get_mut(&player).unwrap().push_back(dir);
             } else if let Packet::NewConnection { player, sender } = input {
                 self.players.push(player);
@@ -116,6 +123,7 @@ async fn handle_connection(
     player_id: PlayerId,
     tx: mpsc::Sender<Packet>,
     mut out_rx: mpsc::Receiver<OutputPacket>,
+    shutdown: CancellationToken,
 ) {
     let (reader, mut writer) = socket.into_split();
     let mut lines = BufReader::new(reader).lines();
@@ -123,18 +131,16 @@ async fn handle_connection(
         tokio::select! {
             result = lines.next_line() => {
                 match result {
-                    Ok(Some(line)) => {
-                        if let Ok(InputPacket::Direction { dir }) =
-                            serde_json::from_str(&line)
-                        {
-                            if tx.send(Packet::Direction {
-                                player: player_id,
-                                dir,
-                            }).await.is_err() {
-                                break;
-                            }
-                        }
+                Ok(Some(line)) => {
+                    if let Ok(InputPacket::Direction { dir }) = serde_json::from_str(&line)
+                    && tx.send(Packet::Direction {
+                        player: player_id,
+                        dir,
+                    }).await.is_err()
+                    {
+                        break;
                     }
+                }
 
                     Ok(None) => break,
 
@@ -155,6 +161,9 @@ async fn handle_connection(
                 if writer.write_all(b"\n").await.is_err() {
                     break;
                 }
+            }
+            _ = shutdown.cancelled() => {
+                break;
             }
 
             else => break,

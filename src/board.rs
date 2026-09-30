@@ -24,9 +24,6 @@ impl Board {
             num_apples,
         }
     }
-    pub fn get_apples(&self) -> Vec<IVec2> {
-        self.apples.clone()
-    }
     pub fn get_apple_at(&self, pos: IVec2) -> Cell {
         if self.apples.contains(&pos) {
             return Cell::Apple;
@@ -56,8 +53,7 @@ impl BoardSystem {
             );
             match world.get_cell_at(pos) {
                 Cell::Empty => {}
-                Cell::Apple => continue,
-                Cell::Snake(_) => continue,
+                _ => continue,
             };
             if world.board().apples.contains(&pos) {
                 continue;

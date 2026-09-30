@@ -24,12 +24,14 @@ pub struct Snake {
     state: SnakeState,
     segments: Vec<Segment>,
     last_tail_dir: Dir,
+    player: PlayerId,
 }
 
 pub trait SnakeWorld {
     fn snake(&self, player: &PlayerId) -> Option<&Snake>;
     fn snake_mut(&mut self, player: &PlayerId) -> Option<&mut Snake>;
     fn get_cell_at(&self, pos: IVec2) -> Cell;
+    fn get_cells_at(&self, pos: IVec2) -> Vec<Cell>;
     fn is_valid_pos(&self, pos: IVec2) -> bool;
     fn remove_apple(&mut self, pos: IVec2);
     fn get_width(&self) -> i32;
@@ -37,10 +39,11 @@ pub trait SnakeWorld {
     fn board(&self) -> &Board;
     fn board_mut(&mut self) -> &mut Board;
     fn new_snake(&mut self, id: PlayerId);
+    fn remove_snake(&mut self, id: &PlayerId);
 }
 
 impl Snake {
-    pub fn new(pos: IVec2, length: i32) -> Snake {
+    pub fn new(pos: IVec2, length: i32, player: PlayerId) -> Snake {
         let mut segments = vec![];
         for i in 0..length {
             segments.push(Segment {
@@ -52,16 +55,14 @@ impl Snake {
             segments,
             state: SnakeState::Alive,
             last_tail_dir: Dir::Right,
+            player,
         }
     }
 
-    pub fn get_segments_pos(&self) -> Vec<IVec2> {
-        self.segments.iter().map(|seg| seg.pos).collect()
-    }
     pub fn get_segment_pos_at(&self, pos: IVec2) -> Cell {
         for seg in self.segments.iter().enumerate().rev() {
             if seg.1.pos == pos {
-                return Cell::Snake(seg.0 as i32);
+                return Cell::Snake(seg.0 as i32, self.player);
             }
         }
         Cell::Empty
@@ -108,21 +109,27 @@ impl SnakeSystem {
     }
 
     pub fn update_state<W: SnakeWorld>(world: &mut W, player: &PlayerId) {
-        let state;
+        let mut state = SnakeState::Alive;
         let head_pos = world.snake(player).unwrap().get_head_pos();
         if !world.is_valid_pos(head_pos) {
             state = SnakeState::Crashed;
         } else {
-            match world.get_cell_at(head_pos) {
-                Cell::Empty => state = SnakeState::Alive,
-                Cell::Snake(i) => {
-                    if i != 0 {
-                        state = SnakeState::Crashed
-                    } else {
-                        state = SnakeState::Alive
+            for cell in world.get_cells_at(head_pos) {
+                match cell {
+                    Cell::Empty => state = SnakeState::Alive,
+                    Cell::Snake(i, other_player) => {
+                        if i != 0 || &other_player != player {
+                            state = SnakeState::Crashed;
+                            break;
+                        } else {
+                            state = SnakeState::Alive
+                        }
+                    }
+                    Cell::Apple => {
+                        state = SnakeState::Eating;
+                        break;
                     }
                 }
-                Cell::Apple => state = SnakeState::Eating,
             }
         }
         if let Some(snake) = world.snake_mut(player) {
@@ -142,7 +149,9 @@ impl SnakeSystem {
                 SnakeSystem::grow(world.snake_mut(player).unwrap());
             }
             SnakeState::Alive => {}
-            SnakeState::Crashed => {}
+            SnakeState::Crashed => {
+                world.remove_snake(player);
+            }
         }
     }
     fn grow(snake: &mut Snake) {
