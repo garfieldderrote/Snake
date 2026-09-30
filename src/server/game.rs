@@ -11,7 +11,7 @@ use crate::{
     board::{Board, BoardSystem},
     server::network::Network,
     snake::{Snake, SnakeSystem, SnakeWorld},
-    util::{Cell, GameEnding, IVec2},
+    util::{Cell, IVec2},
 };
 
 pub struct GameSystem;
@@ -139,7 +139,7 @@ impl GameSystem {
         game: &mut Game<W>,
         network: &mut Network,
         shutdown: CancellationToken,
-    ) -> GameEnding {
+    ) {
         let mut last_update = Instant::now();
 
         while !shutdown.is_cancelled() {
@@ -147,14 +147,9 @@ impl GameSystem {
             network.receive();
             if last_update.elapsed() >= Duration::from_millis(200) {
                 GameSystem::tick(&mut game.world, network);
-                // if !SnakeSystem::alive(game.world.snake(&PlayerId(0)).unwrap()) {
-                //     return GameEnding::Failure;
-                // }
-                //draw_board(&mut game.world);
                 last_update = Instant::now();
             }
         }
-        GameEnding::Misc
     }
     pub fn tick<W: SnakeWorld>(world: &mut W, network: &mut Network) {
         let players = network.get_players().clone();

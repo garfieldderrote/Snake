@@ -86,7 +86,7 @@ impl Network {
             if self.buffer.len() <= 2
                 && let Packet::Direction { player, dir } = input
             {
-                self.buffer.entry(player).or_insert_with(|| VecDeque::new());
+                self.buffer.entry(player).or_default();
                 self.buffer.get_mut(&player).unwrap().push_back(dir);
             } else if let Packet::NewConnection { player, sender } = input {
                 self.players.push(player);

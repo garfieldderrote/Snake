@@ -169,13 +169,13 @@ impl SnakeSystem {
             });
         }
     }
-    pub fn alive(snake: &Snake) -> bool {
-        match snake.state {
-            SnakeState::Crashed => false,
-            SnakeState::Alive => true,
-            SnakeState::Eating => true,
-        }
-    }
+    // pub fn alive(snake: &Snake) -> bool {
+    //     match snake.state {
+    //         SnakeState::Crashed => false,
+    //         SnakeState::Alive => true,
+    //         SnakeState::Eating => true,
+    //     }
+    // }
 }
 
 fn check_valid_input(dira: Dir, dirb: Dir) -> bool {

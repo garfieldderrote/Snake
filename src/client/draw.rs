@@ -48,7 +48,7 @@ impl DrawWorld for ClientWorld {
 }
 
 fn get_player_skin(player: PlayerId) -> ColoredString {
-    let player_skins = vec!["# ".blue(), "# ".green(), "# ".yellow()];
+    let player_skins = ["# ".blue(), "# ".green(), "# ".yellow()];
     player_skins[player.0 as usize % player_skins.len()].clone()
 }
 

@@ -8,7 +8,6 @@ use crate::{
         game::{Game, GameSystem},
         network::Network,
     },
-    util::GameEnding,
 };
 
 mod board;
@@ -50,24 +49,24 @@ async fn main() {
         _ = tokio::signal::ctrl_c() => {},
         _ = shutdown.cancelled() => {},
     }
-    println!("Shutting down...");
+    Input::clean();
+    println!("\rShutting down...");
 
     shutdown.cancel();
-
-    Input::clean();
 }
 
 async fn join(ip: String, shutdown: CancellationToken) {
     let net_shutdown = shutdown.clone();
     println!("\r[Client] Init Input");
-    let input = Input::new(shutdown);
+    let input = Input::new(shutdown.clone());
     println!("\r[Client] Init Network");
     let network = client::network::Network::new(ip).await;
     if let Some(network) = network {
         println!("\r[Client] Spawn Threads");
         network.spawn_threads(input, net_shutdown);
     } else {
-        print!("\r[Client] Connection Failed");
+        println!("\r[Client] Connection Failed");
+        shutdown.cancel();
     }
 }
 
@@ -75,12 +74,7 @@ fn host(shutdown: CancellationToken) {
     let mut network = Network::new(shutdown.clone());
     println!("\r[Server] Initialized Network");
     let mut game = Game::new();
-    let result = GameSystem::run(&mut game, &mut network, shutdown);
-    match result {
-        GameEnding::Victory => print_victory(),
-        GameEnding::Failure => print_gameover(),
-        GameEnding::Misc => {}
-    }
+    GameSystem::run(&mut game, &mut network, shutdown);
 }
 
 fn get_user_choice() -> LaunchOptions {
@@ -113,12 +107,4 @@ fn read_string() -> String {
         s.pop();
     }
     s
-}
-
-fn print_victory() {
-    println!("You Win!");
-}
-
-fn print_gameover() {
-    println!("Game Over!");
 }

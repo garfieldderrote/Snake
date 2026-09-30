@@ -34,9 +34,3 @@ pub enum Cell {
     Apple,
     Snake(i32, PlayerId),
 }
-
-pub enum GameEnding {
-    Victory,
-    Failure,
-    Misc,
-}
