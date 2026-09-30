@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 
 use tokio::{
@@ -11,6 +12,10 @@ pub struct Network {
     receiver: Receiver<Packet>,
     buffer: HashMap<PlayerId, VecDeque<Dir>>,
     players: Vec<PlayerId>,
+}
+#[derive(Serialize, Deserialize)]
+pub enum InputPacket {
+    Direction { dir: Dir },
 }
 
 enum Packet {
@@ -37,6 +42,7 @@ impl Network {
                 next_player_id += 1;
 
                 let tx = tx.clone();
+                //println!("{}", next_player_id);
 
                 _ = tx.send(Packet::NewConnection(player_id)).await;
 
@@ -74,17 +80,10 @@ impl Network {
 async fn handle_connection(socket: TcpStream, player_id: PlayerId, tx: mpsc::Sender<Packet>) {
     let reader = BufReader::new(socket);
     let mut lines = reader.lines();
-
     while let Ok(Some(line)) = lines.next_line().await {
-        let input = match line.trim() {
-            "up" => Some(Dir::Up),
-            "down" => Some(Dir::Down),
-            "left" => Some(Dir::Left),
-            "right" => Some(Dir::Right),
-            _ => None,
-        };
+        let input: Result<InputPacket, _> = serde_json::from_str(&line);
 
-        if let Some(direction) = input
+        if let Ok(InputPacket::Direction { dir: direction }) = input
             && tx
                 .send(Packet::Direction {
                     player: player_id,

@@ -1,0 +1,4 @@
+main -> network(thread)
+|       |
+v       v Channel
+  game

@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy, PartialEq)]
 pub struct IVec2 {
     pub x: i32,
@@ -16,7 +18,7 @@ impl IVec2 {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
 pub enum Dir {
     Up,
     Down,

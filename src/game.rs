@@ -4,6 +4,8 @@ use std::{
     time::{self, Duration, Instant},
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     board::{Board, BoardSystem},
     draw::draw_board,
@@ -28,7 +30,7 @@ pub struct MultiplayerWorld {
     pub board: Board,
     pub snakes: HashMap<PlayerId, Snake>,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub struct PlayerId(pub u64);
 
 impl SnakeWorld for MultiplayerWorld {
@@ -116,18 +118,13 @@ impl SnakeWorld for MultiplayerWorld {
 // }
 
 impl GameSystem {
-    pub fn run<W: SnakeWorld>(
-        game: &mut Game<W>,
-        input: &mut Input,
-        network: &mut Network,
-    ) -> GameEnding {
+    pub fn run<W: SnakeWorld>(game: &mut Game<W>, network: &mut Network) -> GameEnding {
         let mut last_update = Instant::now();
-        while !input.should_quit {
+        loop {
             sleep(time::Duration::from_millis(50));
-            input.fetch();
             network.receive();
             if last_update.elapsed() >= Duration::from_millis(200) {
-                GameSystem::tick(&mut game.world, input, network);
+                GameSystem::tick(&mut game.world, network);
                 // if !SnakeSystem::alive(game.world.snake(&PlayerId(0)).unwrap()) {
                 //     return GameEnding::Failure;
                 // }
@@ -135,10 +132,9 @@ impl GameSystem {
                 last_update = Instant::now();
             }
         }
-        GameEnding::Misc
+        //GameEnding::Misc
     }
-    pub fn tick<W: SnakeWorld>(world: &mut W, input: &mut Input, network: &mut Network) {
-        let input_dir = input.get_dir();
+    pub fn tick<W: SnakeWorld>(world: &mut W, network: &mut Network) {
         let players = network.get_players().clone();
         for player in players {
             if world.snake(&player).is_none() {
