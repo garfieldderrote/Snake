@@ -43,18 +43,25 @@ pub trait SnakeWorld {
 }
 
 impl Snake {
-    pub fn new(pos: IVec2, length: i32, player: PlayerId) -> Snake {
+    pub fn new(pos: IVec2, dir: Dir, length: i32, player: PlayerId) -> Snake {
         let mut segments = vec![];
+        let movement = match dir {
+            Dir::Up => IVec2::new(0, -1),
+            Dir::Down => IVec2::new(0, 1),
+            Dir::Right => IVec2::new(-1, 0),
+            Dir::Left => IVec2::new(1, 0),
+        };
+
         for i in 0..length {
             segments.push(Segment {
-                pos: IVec2::new(-i, 0).add(&pos),
-                dir: Dir::Right,
+                pos: movement.scale(i).add(&pos),
+                dir,
             });
         }
         Snake {
             segments,
             state: SnakeState::Alive,
-            last_tail_dir: Dir::Right,
+            last_tail_dir: dir,
             player,
         }
     }

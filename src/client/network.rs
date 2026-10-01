@@ -15,7 +15,7 @@ use crate::{
         draw::{ClientWorld, draw_board},
         input::Input,
     },
-    server::network::{InputPacket, OutputPacket},
+    server::network::{InputPacket, OutputPacket, ServerState},
 };
 
 pub struct Network {
@@ -49,6 +49,8 @@ impl Network {
                     Network::handle_received_packet(packet);
                 }
             }
+            println!("Disconnected from Server... ");
+            shutdown.cancel();
         });
     }
     fn handle_received_packet(packet: OutputPacket) {
@@ -60,6 +62,8 @@ impl Network {
                 let mut world = ClientWorld::new(board_state, snakes);
                 draw_board(&mut world);
             }
+            OutputPacket::ServerState(ServerState::Shutdown) => {}
+            OutputPacket::ServerState(_) => {}
         }
     }
     pub fn spawn_send_thread(

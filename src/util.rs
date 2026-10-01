@@ -18,6 +18,12 @@ impl IVec2 {
             y: self.y + other.y,
         }
     }
+    pub fn scale(&self, scalar: i32) -> IVec2 {
+        IVec2 {
+            x: self.x * scalar,
+            y: self.y * scalar,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]

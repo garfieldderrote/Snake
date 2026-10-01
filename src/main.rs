@@ -20,28 +20,32 @@ enum LaunchOptions {
     Join(String),
     Host,
     ServerOnly,
+    Quit,
 }
 
 #[tokio::main]
 async fn main() {
     let shutdown = CancellationToken::new();
+    let client_shutdown = shutdown.clone();
+    let server_shutdown = shutdown.clone();
     let choice = get_user_choice();
     match choice {
         LaunchOptions::Join(ip) => {
-            join(ip, shutdown.clone()).await;
+            join(ip, client_shutdown).await;
         }
         LaunchOptions::Host => {
-            let host_shutdown = shutdown.clone();
             tokio::task::spawn_blocking(|| {
-                host(host_shutdown);
+                host(server_shutdown);
             });
-            join("localhost".to_string(), shutdown.clone()).await;
+            join("localhost".to_string(), client_shutdown).await;
         }
         LaunchOptions::ServerOnly => {
-            let host_shutdown = shutdown.clone();
             tokio::task::spawn_blocking(|| {
-                host(host_shutdown);
+                host(server_shutdown);
             });
+        }
+        LaunchOptions::Quit => {
+            shutdown.cancel();
         }
     }
     // Waits for Ctrl_C or the token to cancel
@@ -78,12 +82,15 @@ fn host(shutdown: CancellationToken) {
 }
 
 fn get_user_choice() -> LaunchOptions {
-    println!("1) Join a Game \n 2) Host a Game \n 3) Server Only \n Choose one of the Options:");
+    println!(
+        " 1) Join a Game \n 2) Host a Game \n 3) Server Only \n 4) Quit \n Choose one of the Options:"
+    );
     loop {
         match read_string().as_str() {
             "1" => LaunchOptions::Join,
             "2" => return LaunchOptions::Host,
             "3" => return LaunchOptions::ServerOnly,
+            "4" => return LaunchOptions::Quit,
             _ => {
                 continue;
             }

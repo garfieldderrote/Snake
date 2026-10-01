@@ -19,12 +19,20 @@ pub struct Network {
 pub enum InputPacket {
     Direction { dir: Dir },
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum ServerState {
+    Shutdown,
+    Running,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum OutputPacket {
     State {
         board_state: Board,
         snakes: Vec<Snake>,
     },
+    ServerState(ServerState),
 }
 
 enum Packet {
@@ -35,6 +43,9 @@ enum Packet {
     NewConnection {
         player: PlayerId,
         sender: mpsc::Sender<OutputPacket>,
+    },
+    Disconnect {
+        player: PlayerId,
     },
 }
 
@@ -81,18 +92,29 @@ impl Network {
         });
         network
     }
-    pub fn receive(&mut self) {
+    pub fn receive(&mut self) -> Vec<PlayerId> {
+        let mut disconnected_players = Vec::new();
         while let Ok(input) = self.receiver.try_recv() {
-            if self.buffer.len() <= 2
-                && let Packet::Direction { player, dir } = input
-            {
-                self.buffer.entry(player).or_default();
-                self.buffer.get_mut(&player).unwrap().push_back(dir);
-            } else if let Packet::NewConnection { player, sender } = input {
-                self.players.push(player);
-                self.senders.insert(player, sender);
-            }
+            match input {
+                Packet::Direction { player, dir } => {
+                    if self.buffer.len() <= 2 {
+                        self.buffer.entry(player).or_default();
+                        self.buffer.get_mut(&player).unwrap().push_back(dir);
+                    }
+                }
+                Packet::NewConnection { player, sender } => {
+                    self.players.push(player);
+                    self.senders.insert(player, sender);
+                }
+                Packet::Disconnect { player } => {
+                    self.senders.remove(&player);
+                    self.buffer.remove(&player);
+                    self.players.retain(|p| p != &player);
+                    disconnected_players.push(player);
+                }
+            };
         }
+        disconnected_players
     }
     pub fn get_input_player(&mut self, player_id: PlayerId) -> Option<Dir> {
         if let Some(buffer) = self.buffer.get_mut(&player_id) {
@@ -118,6 +140,14 @@ impl Network {
     }
 }
 
+enum ConnectionEnd {
+    Shutdown,
+    Disconnect,
+}
+
+// handles the whole packet receiving and sending over the network through channels
+// on tx it sends the incoming packets
+// on out_rx it receives packets to be send
 async fn handle_connection(
     socket: TcpStream,
     player_id: PlayerId,
@@ -127,7 +157,8 @@ async fn handle_connection(
 ) {
     let (reader, mut writer) = socket.into_split();
     let mut lines = BufReader::new(reader).lines();
-    loop {
+    // get the reason the loop exits
+    let reason = loop {
         tokio::select! {
             result = lines.next_line() => {
                 match result {
@@ -138,13 +169,13 @@ async fn handle_connection(
                         dir,
                     }).await.is_err()
                     {
-                        break;
+                        break ConnectionEnd::Disconnect;
                     }
                 }
 
-                    Ok(None) => break,
+                    Ok(None) => break ConnectionEnd::Disconnect,
 
-                    Err(_) => break,
+                    Err(_) => break ConnectionEnd:: Disconnect,
                 }
             }
 
@@ -155,18 +186,22 @@ async fn handle_connection(
                 };
 
                 if writer.write_all(json.as_bytes()).await.is_err() {
-                    break;
+                    break ConnectionEnd::Disconnect;
                 }
 
                 if writer.write_all(b"\n").await.is_err() {
-                    break;
+                    break ConnectionEnd::Disconnect;
                 }
             }
             _ = shutdown.cancelled() => {
-                break;
+                break ConnectionEnd::Shutdown;
             }
 
-            else => break,
+            else => break ConnectionEnd::Disconnect,
         }
+    };
+    if matches!(reason, ConnectionEnd::Disconnect) {
+        _ = writer.shutdown().await;
+        _ = tx.send(Packet::Disconnect { player: player_id }).await;
     }
 }
