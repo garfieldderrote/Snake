@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    board::{Board, BoardSystem},
+    board::{self, Board, BoardSystem},
     server::network::Network,
     snake::{Snake, SnakeSystem, SnakeWorld},
     util::{Cell, Dir, IVec2},
@@ -35,6 +35,7 @@ impl SnakeWorld for MultiplayerWorld {
     fn snake_mut(&mut self, player: &PlayerId) -> Option<&mut Snake> {
         self.snakes.get_mut(player)
     }
+
     fn get_cell_at(&self, pos: IVec2) -> Cell {
         let mut cell = self.board.get_apple_at(pos);
         if cell != Cell::Empty {
@@ -77,6 +78,9 @@ impl SnakeWorld for MultiplayerWorld {
     fn get_height(&self) -> i32 {
         self.board.get_height()
     }
+}
+
+impl GameWorld for MultiplayerWorld {
     fn board(&self) -> &Board {
         &self.board
     }
@@ -104,10 +108,21 @@ impl SnakeWorld for MultiplayerWorld {
     fn remove_snake(&mut self, id: &PlayerId) {
         self.snakes.remove(id);
     }
+    fn get_snake_hashmap(&self) -> &HashMap<PlayerId, Snake> {
+        &self.snakes
+    }
+}
+
+pub trait GameWorld {
+    fn new_snake(&mut self, id: PlayerId);
+    fn remove_snake(&mut self, id: &PlayerId);
+    fn get_snake_hashmap(&self) -> &HashMap<PlayerId, Snake>;
+    fn board(&self) -> &Board;
+    fn board_mut(&mut self) -> &mut Board;
 }
 
 impl GameSystem {
-    pub fn run<W: SnakeWorld>(
+    pub fn run<W: GameWorld + SnakeWorld>(
         game: &mut Game<W>,
         network: &mut Network,
         shutdown: CancellationToken,
@@ -119,9 +134,16 @@ impl GameSystem {
 
             // fetch the network to store input in buffer
             // easiest way to get disconnected_players from network
-            let disconnected_players = network.receive();
+            let (disconnected_players, connected_players) = network.receive();
             for player in disconnected_players {
                 game.world.remove_snake(&player);
+                network.remove_snake(player);
+            }
+            for _player in connected_players {
+                network.send_game_state(
+                    game.world.board().clone(),
+                    game.world.get_snake_hashmap().clone(),
+                );
             }
             if last_update.elapsed() >= Duration::from_millis(200) {
                 GameSystem::tick(&mut game.world, network);
@@ -129,29 +151,57 @@ impl GameSystem {
             }
         }
     }
-    pub fn tick<W: SnakeWorld>(world: &mut W, network: &mut Network) {
+    pub fn tick<W: GameWorld + SnakeWorld>(world: &mut W, network: &mut Network) {
         // get all connected players
+        let mut snake_movement = HashMap::new();
         let players = network.get_players().clone();
-        let mut snakes = Vec::new();
         for player in players {
             // spawn new snake
             if world.snake(&player).is_none() {
                 world.new_snake(player);
+                network.add_snake(player, world.snake(&player).unwrap().clone());
             }
-
             // get buffered network input from player fetched from .receive()
             let input_dir = network.get_input_player(player);
-
+            // store input dir for transmision
+            if let Some(dir) = input_dir {
+                snake_movement.insert(player, dir);
+            } else {
+                snake_movement.insert(player, world.snake(&player).unwrap().get_dir());
+            }
             SnakeSystem::tick(world, input_dir, &player);
-
-            // capture snakes in Vec<> for sending
-            if world.snake(&player).is_some() {
-                snakes.push(world.snake(&player).unwrap().clone());
+            if !SnakeSystem::alive(world.snake(&player).unwrap()) {
+                world.remove_snake(&player);
+                network.remove_snake(player);
             }
         }
+        network.snake_movements(snake_movement);
+        let board = world.board().clone();
+
         BoardSystem::tick(world);
+
+        let added_apples: Vec<IVec2> = world
+            .board()
+            .get_apples()
+            .iter()
+            .filter(|a| !board.get_apples().contains(*a))
+            .copied()
+            .collect();
+        let removed_apples: Vec<IVec2> = board
+            .get_apples()
+            .iter()
+            .filter(|a| !world.board().get_apples().contains(*a))
+            .copied()
+            .collect();
+        if !removed_apples.is_empty() {
+            network.remove_apples(removed_apples);
+        }
+        if !added_apples.is_empty() {
+            network.add_apples(added_apples);
+        }
+        network.send_finished();
+
         // sending the current board state
-        network.send_game_state(world.board().clone(), snakes);
     }
 }
 

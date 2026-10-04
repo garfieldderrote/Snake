@@ -1,8 +1,8 @@
 - Snake Killing ✅
 - Points
 - Rounds
-- Player disconnecting
+- Player disconnecting ✅
 - optimize Network traffic
-    - send differences not entire board
+    - send differences not entire board ✅
     - client prediction?
 - Graphics?

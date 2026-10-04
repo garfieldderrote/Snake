@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -36,10 +38,6 @@ pub trait SnakeWorld {
     fn remove_apple(&mut self, pos: IVec2);
     fn get_width(&self) -> i32;
     fn get_height(&self) -> i32;
-    fn board(&self) -> &Board;
-    fn board_mut(&mut self) -> &mut Board;
-    fn new_snake(&mut self, id: PlayerId);
-    fn remove_snake(&mut self, id: &PlayerId);
 }
 
 impl Snake {
@@ -64,6 +62,10 @@ impl Snake {
             last_tail_dir: dir,
             player,
         }
+    }
+
+    pub fn get_dir(&self) -> Dir {
+        self.segments[0].dir
     }
 
     pub fn get_segment_pos_at(&self, pos: IVec2) -> Cell {
@@ -156,9 +158,7 @@ impl SnakeSystem {
                 SnakeSystem::grow(world.snake_mut(player).unwrap());
             }
             SnakeState::Alive => {}
-            SnakeState::Crashed => {
-                world.remove_snake(player);
-            }
+            SnakeState::Crashed => {}
         }
     }
     fn grow(snake: &mut Snake) {
@@ -176,13 +176,13 @@ impl SnakeSystem {
             });
         }
     }
-    // pub fn alive(snake: &Snake) -> bool {
-    //     match snake.state {
-    //         SnakeState::Crashed => false,
-    //         SnakeState::Alive => true,
-    //         SnakeState::Eating => true,
-    //     }
-    // }
+    pub fn alive(snake: &Snake) -> bool {
+        match snake.state {
+            SnakeState::Crashed => false,
+            SnakeState::Alive => true,
+            SnakeState::Eating => true,
+        }
+    }
 }
 
 fn check_valid_input(dira: Dir, dirb: Dir) -> bool {

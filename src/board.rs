@@ -2,6 +2,7 @@ use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    server::game::GameWorld,
     snake::SnakeWorld,
     util::{Cell, IVec2},
 };
@@ -24,6 +25,13 @@ impl Board {
             num_apples,
         }
     }
+
+    pub fn get_apples(&self) -> &Vec<IVec2> {
+        &self.apples
+    }
+    pub fn get_apples_mut(&mut self) -> &mut Vec<IVec2> {
+        &mut self.apples
+    }
     pub fn get_apple_at(&self, pos: IVec2) -> Cell {
         if self.apples.contains(&pos) {
             return Cell::Apple;
@@ -38,10 +46,10 @@ impl Board {
     }
 }
 impl BoardSystem {
-    pub fn tick<W: SnakeWorld>(world: &mut W) {
+    pub fn tick<W: GameWorld + SnakeWorld>(world: &mut W) {
         BoardSystem::spawn_apples(world);
     }
-    fn spawn_apples<W: SnakeWorld>(world: &mut W) {
+    fn spawn_apples<W: GameWorld + SnakeWorld>(world: &mut W) {
         let mut rng = rand::rng();
         loop {
             if world.board().apples.len() >= world.board().num_apples as usize {
@@ -62,7 +70,7 @@ impl BoardSystem {
         }
     }
 
-    pub fn remove_apple_at<W: SnakeWorld>(world: &mut W, pos: IVec2) {
+    pub fn remove_apple_at<W: GameWorld>(world: &mut W, pos: IVec2) {
         world.board_mut().apples.retain(|apple| *apple != pos);
     }
 }

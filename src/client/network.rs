@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -11,11 +11,12 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    board::Board,
     client::{
         draw::{ClientWorld, draw_board},
         input::Input,
     },
-    server::network::{InputPacket, OutputPacket, ServerState},
+    server::network::{Difference, InputPacket, OutputPacket},
 };
 
 pub struct Network {
@@ -40,30 +41,48 @@ impl Network {
     }
     pub fn spawn_listen_thread(reader: OwnedReadHalf, shutdown: CancellationToken) {
         tokio::spawn(async move {
+            let mut world = ClientWorld::new(Board::new(0, 0, 0), HashMap::new());
             let mut lines = BufReader::new(reader).lines();
             while let Ok(Some(line)) = tokio::select! {
                 line = lines.next_line() => line,
                 _ = shutdown.cancelled() => Ok(None),
             } {
                 if let Ok(packet) = serde_json::from_str::<OutputPacket>(&line) {
-                    Network::handle_received_packet(packet);
+                    Network::handle_received_packet(packet, &mut world);
                 }
             }
             println!("Disconnected from Server... ");
             shutdown.cancel();
         });
     }
-    fn handle_received_packet(packet: OutputPacket) {
+    fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld) {
         match packet {
             OutputPacket::State {
                 board_state,
                 snakes,
             } => {
-                let mut world = ClientWorld::new(board_state, snakes);
-                draw_board(&mut world);
+                *world = ClientWorld::new(board_state, snakes);
             }
-            OutputPacket::ServerState(ServerState::Shutdown) => {}
-            OutputPacket::ServerState(_) => {}
+            OutputPacket::Difference(Difference::RemovedApples(apples)) => {
+                world.remove_apple(apples);
+            }
+            OutputPacket::Difference(Difference::AddedApples(apples)) => {
+                world.add_apples(apples);
+            }
+            OutputPacket::Difference(Difference::SnakeMovements(movements)) => {
+                for (player, dir) in movements {
+                    world.move_snake(player, dir);
+                }
+            }
+            OutputPacket::Difference(Difference::AddSnake { player, snake }) => {
+                world.add_snake(snake, player);
+            }
+            OutputPacket::Difference(Difference::RemoveSnake(player)) => {
+                world.remove_snake(player);
+            }
+            OutputPacket::TickFinished => {
+                draw_board(world);
+            }
         }
     }
     pub fn spawn_send_thread(
