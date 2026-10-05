@@ -7,9 +7,10 @@ use std::{
 use rand::{RngExt, rng};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use tracy_client::span;
 
 use crate::{
-    board::{self, Board, BoardSystem},
+    board::{Board, BoardSystem},
     server::network::Network,
     snake::{Snake, SnakeSystem, SnakeWorld},
     util::{Cell, Dir, IVec2},
@@ -129,11 +130,15 @@ impl GameSystem {
     ) {
         let mut last_update = Instant::now();
 
+        // debug
+
         while !shutdown.is_cancelled() {
             sleep(time::Duration::from_millis(50));
 
             // fetch the network to store input in buffer
             // easiest way to get disconnected_players from network
+            let network_fetch_span = span!("NetworkFetch");
+            network_fetch_span.emit_color(0xFF0000);
             let (disconnected_players, connected_players) = network.receive();
             for player in disconnected_players {
                 game.world.remove_snake(&player);
@@ -145,7 +150,11 @@ impl GameSystem {
                     game.world.get_snake_hashmap().clone(),
                 );
             }
+            drop(network_fetch_span);
+
             if last_update.elapsed() >= Duration::from_millis(200) {
+                let tick_zone = span!("Tick");
+                tick_zone.emit_color(0x00FF00);
                 GameSystem::tick(&mut game.world, network);
                 last_update = Instant::now();
             }

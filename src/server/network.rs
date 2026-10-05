@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use tokio_util::sync::CancellationToken;
+use tracy_client::{set_thread_name, span};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -69,6 +70,7 @@ impl Network {
         };
         let listener_shutdown = shutdown.clone();
         tokio::spawn(async move {
+            set_thread_name!("Connection Listener");
             let listener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
             println!("[Server/Network] Init Bind");
             let mut next_player_id = 0u64;
@@ -95,6 +97,7 @@ impl Network {
                 let handler_shutdown = shutdown.clone();
 
                 tokio::spawn(async move {
+                    set_thread_name!("Player Listener/Sender");
                     handle_connection(socket, player_id, tx, out_rx, handler_shutdown).await
                 });
             }
@@ -148,11 +151,9 @@ impl Network {
 
     pub fn send_packet(&self, packet: OutputPacket) {
         let senders: Vec<_> = self.senders.values().cloned().collect();
-        tokio::spawn(async move {
-            for tx in senders {
-                let _ = tx.send(packet.clone()).await;
-            }
-        });
+        for tx in senders {
+            let _ = tx.try_send(packet.clone());
+        }
     }
     pub fn add_snake(&self, player: PlayerId, snake: Snake) {
         let packet = OutputPacket::Difference(Difference::AddSnake { player, snake });
@@ -201,7 +202,7 @@ async fn handle_connection(
     let reason = loop {
         tokio::select! {
             result = lines.next_line() => {
-                match result {
+            match result {
                 Ok(Some(line)) => {
                     if let Ok(InputPacket::Direction { dir }) = serde_json::from_str(&line)
                     && tx.send(Packet::Direction {
@@ -213,16 +214,20 @@ async fn handle_connection(
                     }
                 }
 
-                    Ok(None) => break ConnectionEnd::Disconnect,
+                Ok(None) => break ConnectionEnd::Disconnect,
 
-                    Err(_) => break ConnectionEnd:: Disconnect,
-                }
+                Err(_) => break ConnectionEnd:: Disconnect,
             }
+        }
 
             Some(packet) = out_rx.recv() => {
-                let json = match serde_json::to_string(&packet) {
-                    Ok(json) => json,
-                    Err(_) => continue,
+                let json = {
+                    let span = span!("Output Serialize");
+                    span.emit_color(0xFF0000);
+                    match serde_json::to_string(&packet) {
+                        Ok(json) => json,
+                        Err(_) => continue,
+                    }
                 };
 
                 if writer.write_all(json.as_bytes()).await.is_err() {
@@ -232,14 +237,20 @@ async fn handle_connection(
                 if writer.write_all(b"\n").await.is_err() {
                     break ConnectionEnd::Disconnect;
                 }
+                {
+                    let span = span!("Finished Sending");
+                    span.emit_color(0x0000FF);
+                }
+
             }
             _ = shutdown.cancelled() => {
                 break ConnectionEnd::Shutdown;
             }
 
             else => break ConnectionEnd::Disconnect,
-        }
+            }
     };
+
     if matches!(reason, ConnectionEnd::Disconnect) {
         _ = writer.shutdown().await;
         _ = tx.send(Packet::Disconnect { player: player_id }).await;

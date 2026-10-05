@@ -12,3 +12,8 @@ tokio = { version = "1.53.1", features = ["full"] }
 tokio-util = "0.7.19"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+tracy-client = { version = "0.19.0", features = [
+  "enable",
+  "sampling",
+  "system-tracing",
+] }

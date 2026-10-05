@@ -1,6 +1,7 @@
 use std::io::{Write, stdin, stdout};
 
 use tokio_util::sync::CancellationToken;
+use tracy_client::{Client, set_thread_name};
 
 use crate::{
     client::input::Input,
@@ -29,15 +30,20 @@ async fn main() {
     let client_shutdown = shutdown.clone();
     let server_shutdown = shutdown.clone();
     let choice = get_user_choice();
+    let client = Client::start(); // for tracy debug
     match choice {
         LaunchOptions::Join(ip) => {
-            join(ip, client_shutdown).await;
+            join(ip.clone(), client_shutdown.clone()).await;
+            join(ip.clone(), client_shutdown.clone()).await;
+            join(ip.clone(), client_shutdown.clone()).await;
+            join(ip.clone(), client_shutdown.clone()).await;
         }
         LaunchOptions::Host => {
             tokio::task::spawn_blocking(|| {
+                set_thread_name!("Server Main");
                 host(server_shutdown);
             });
-            join("localhost".to_string(), client_shutdown).await;
+            join("localhost".to_string(), client_shutdown.clone()).await;
         }
         LaunchOptions::ServerOnly => {
             tokio::task::spawn_blocking(|| {

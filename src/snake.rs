@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    board::Board,
     server::game::PlayerId,
     util::{Cell, Dir, IVec2},
 };
