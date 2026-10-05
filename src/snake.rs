@@ -1,29 +1,27 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{
     server::game::PlayerId,
     util::{Cell, Dir, IVec2},
 };
 
-#[derive(Clone, Serialize, Deserialize)]
-struct Segment {
-    dir: Dir,
-    pos: IVec2,
+#[derive(Clone)]
+pub struct Segment {
+    pub dir: Dir,
+    pub pos: IVec2,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub enum SnakeState {
     Alive,
     Crashed,
     Eating,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Snake {
-    state: SnakeState,
-    segments: Vec<Segment>,
-    last_tail_dir: Dir,
-    player: PlayerId,
+    pub state: SnakeState,
+    pub segments: Vec<Segment>,
+    pub last_tail_dir: Dir,
+    pub player: PlayerId,
 }
 
 pub trait SnakeWorld {

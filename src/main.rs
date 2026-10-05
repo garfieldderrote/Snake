@@ -13,6 +13,7 @@ use crate::{
 
 mod board;
 mod client;
+mod protocol;
 mod server;
 mod snake;
 mod util;
@@ -30,12 +31,9 @@ async fn main() {
     let client_shutdown = shutdown.clone();
     let server_shutdown = shutdown.clone();
     let choice = get_user_choice();
-    let client = Client::start(); // for tracy debug
+    let _client = Client::start(); // for tracy debug
     match choice {
         LaunchOptions::Join(ip) => {
-            join(ip.clone(), client_shutdown.clone()).await;
-            join(ip.clone(), client_shutdown.clone()).await;
-            join(ip.clone(), client_shutdown.clone()).await;
             join(ip.clone(), client_shutdown.clone()).await;
         }
         LaunchOptions::Host => {

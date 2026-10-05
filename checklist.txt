@@ -19,28 +19,28 @@ Snake-Protocol:
 Server Outgoing:
 types:
 0x00 => EntireState
-+--------------------+----------------+-----------------+
-| apples: xyxyxyxyxy | board_size: xy | snakes: (below) |
-+--------------------+----------------+-----------------+
++--------------------+--------------------+----------------+-----------------+
+| amount_apples: u16 | apples: xyxyxyxyxy | board_size: xy | snakes: (below) |
++--------------------+--------------------+----------------+-----------------+
 snake:
-+-------------------+--------------------------------+
-| length_bytes: u16 | segments: dir,xy,dir,xy,dir,xy | // dir: 0x00-0x03, x,y: u16
-+-------------------+--------------------------------+
++-------------------+-------------+--------------------------------+
+| length_bytes: u16 | player: u64 | segments: dir,xy,dir,xy,dir,xy | // dir: 0x00-0x03, x,y: u32
++-------------------+-------------+--------------------------------+
 
 0x01 => AddApple
 +-----------------------+
-| positions: xyxyxyxyxy | // where x,y: u16
+| positions: xyxyxyxyxy | // where x,y: u32
 +-----------------------+
 
 0x02 => RemoveApple
 +-----------------------+
-| positions: xyxyxyxyxy | // where x,y: u16
+| positions: xyxyxyxyxy | // where x,y: u32
 +-----------------------+
 
 0x03 => AddSnake
-+----------------+----------------+--------------------------+
-| player_id: u64 | dir: 0x00-0x03 | segments_pos: xyxyxyxyxy | // where x,y: u16
-+----------------+----------------+--------------------------+
++--------------------------+
+| snake: (described above) |
++--------------------------+
 
 0x04 => RemoveSnake
 +----------------+
@@ -49,7 +49,7 @@ snake:
 
 0x05 => SnakeMovement
 +----------------+----------------+
-| player_id: u64 | dir: 0x00-0x03 |
+| player_id: u64 | dir: 0x00-0x03 | per player
 +----------------+----------------+
 
 0x06 => TickFinished

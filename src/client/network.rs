@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{
         TcpStream,
         tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -17,7 +17,7 @@ use crate::{
         draw::{ClientWorld, draw_board},
         input::Input,
     },
-    server::network::{Difference, InputPacket, OutputPacket},
+    protocol::{DecodeError, Deserialize, Difference, InputPacket, OutputPacket, Serialize},
 };
 
 pub struct Network {
@@ -40,18 +40,31 @@ impl Network {
         Network::spawn_listen_thread(reader, shutdown.clone());
         Network::spawn_send_thread(writer, input, shutdown.clone());
     }
-    pub fn spawn_listen_thread(reader: OwnedReadHalf, shutdown: CancellationToken) {
+    pub fn spawn_listen_thread(mut reader: OwnedReadHalf, shutdown: CancellationToken) {
         tokio::spawn(async move {
             let mut world = ClientWorld::new(Board::new(0, 0, 0), HashMap::new());
-            let mut lines = BufReader::new(reader).lines();
-            while let Ok(Some(line)) = tokio::select! {
-                line = lines.next_line() => line,
-                _ = shutdown.cancelled() => Ok(None),
+            while let Some(data) = tokio::select! {
+                length = reader.read_u64() => {
+                    let mut buf = vec![0; length.unwrap() as usize];
+                    _ = reader.read_exact(&mut buf).await;
+                    Some(buf)
+                },
+                _ = shutdown.cancelled() => None,
             } {
                 let span = span!("Handle recieved Packet");
                 span.emit_color(0x00FF00);
-                if let Ok(packet) = serde_json::from_str::<OutputPacket>(&line) {
-                    Network::handle_received_packet(packet, &mut world);
+                match OutputPacket::deserialize(&data) {
+                    Ok(packet) => {
+                        Network::handle_received_packet(packet, &mut world);
+                    }
+                    Err(error) => match error {
+                        DecodeError::InvalidPacketType(i) => {
+                            println!("Failed on Packet number: {}", i);
+                        }
+                        _ => {
+                            println!("Failed Packet read, {:?}", error);
+                        }
+                    },
                 }
             }
             println!("Disconnected from Server... ");
@@ -85,10 +98,10 @@ impl Network {
                     world.move_snake(player, dir);
                 }
             }
-            OutputPacket::Difference(Difference::AddSnake { player, snake }) => {
+            OutputPacket::Difference(Difference::AddSnake(snake)) => {
                 let span = span!("AddSnake");
                 span.emit_color(0xFF0000);
-                world.add_snake(snake, player);
+                world.add_snake(snake);
             }
             OutputPacket::Difference(Difference::RemoveSnake(player)) => {
                 let span = span!("RemoveSnake");
@@ -112,13 +125,9 @@ impl Network {
                 sleep(Duration::from_millis(50)).await;
                 input.fetch();
                 if let Some(dir) = input.get_dir() {
-                    let packet = serde_json::to_string(&InputPacket::Direction { dir });
-                    if packet.is_err() {
-                        continue;
-                    }
-                    let packet = packet.unwrap();
-                    _ = writer.write_all(packet.as_bytes()).await;
-                    _ = writer.write_all(b"\n").await;
+                    let packet = InputPacket::Direction { dir }.serialize();
+                    _ = writer.write_all(&packet.len().to_be_bytes()).await;
+                    _ = writer.write_all(packet.as_slice()).await;
                 }
             }
         });

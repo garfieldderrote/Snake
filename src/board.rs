@@ -11,9 +11,9 @@ pub struct BoardSystem;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
-    size: (i32, i32),
-    apples: Vec<IVec2>,
-    num_apples: i32,
+    pub size: (i32, i32),
+    pub apples: Vec<IVec2>,
+    pub num_apples: i32,
 }
 
 impl Board {

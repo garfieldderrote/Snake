@@ -1,48 +1,25 @@
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use tokio_util::sync::CancellationToken;
 use tracy_client::{set_thread_name, span};
 
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::mpsc::{self, Receiver, Sender},
 };
 
 use crate::{
     board::Board,
+    protocol::{Deserialize, Difference, InputPacket, OutputPacket, Serialize},
     server::game::PlayerId,
     snake::Snake,
     util::{Dir, IVec2},
 };
 pub struct Network {
     receiver: Receiver<Packet>,
-    senders: HashMap<PlayerId, Sender<OutputPacket>>,
+    senders: HashMap<PlayerId, Sender<Vec<u8>>>,
     buffer: HashMap<PlayerId, VecDeque<Dir>>,
     players: Vec<PlayerId>,
-}
-#[derive(Serialize, Deserialize)]
-pub enum InputPacket {
-    Direction { dir: Dir },
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum Difference {
-    RemovedApples(Vec<IVec2>),
-    AddedApples(Vec<IVec2>),
-    SnakeMovements(HashMap<PlayerId, Dir>),
-    AddSnake { player: PlayerId, snake: Snake },
-    RemoveSnake(PlayerId),
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum OutputPacket {
-    State {
-        board_state: Board,
-        snakes: HashMap<PlayerId, Snake>,
-    },
-    Difference(Difference),
-    TickFinished,
 }
 
 enum Packet {
@@ -52,7 +29,7 @@ enum Packet {
     },
     NewConnection {
         player: PlayerId,
-        sender: mpsc::Sender<OutputPacket>,
+        sender: mpsc::Sender<Vec<u8>>,
     },
     Disconnect {
         player: PlayerId,
@@ -87,7 +64,7 @@ impl Network {
 
                 let tx = tx.clone();
                 //println!("{}", next_player_id);
-                let (out_tx, out_rx) = mpsc::channel::<OutputPacket>(32);
+                let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>(32);
                 _ = tx
                     .send(Packet::NewConnection {
                         player: player_id,
@@ -151,12 +128,17 @@ impl Network {
 
     pub fn send_packet(&self, packet: OutputPacket) {
         let senders: Vec<_> = self.senders.values().cloned().collect();
+        let data = {
+            let span = span!("Output Serialize");
+            span.emit_color(0xFF0000);
+            packet.serialize()
+        };
         for tx in senders {
-            let _ = tx.try_send(packet.clone());
+            let _ = tx.try_send(data.clone());
         }
     }
-    pub fn add_snake(&self, player: PlayerId, snake: Snake) {
-        let packet = OutputPacket::Difference(Difference::AddSnake { player, snake });
+    pub fn add_snake(&self, snake: Snake) {
+        let packet = OutputPacket::Difference(Difference::AddSnake(snake));
         self.send_packet(packet);
     }
     pub fn remove_snake(&self, player: PlayerId) {
@@ -193,18 +175,20 @@ async fn handle_connection(
     socket: TcpStream,
     player_id: PlayerId,
     tx: mpsc::Sender<Packet>,
-    mut out_rx: mpsc::Receiver<OutputPacket>,
+    mut out_rx: mpsc::Receiver<Vec<u8>>,
     shutdown: CancellationToken,
 ) {
-    let (reader, mut writer) = socket.into_split();
-    let mut lines = BufReader::new(reader).lines();
+    let (mut reader, mut writer) = socket.into_split();
+    //let mut lines = BufReader::new(reader).lines();
     // get the reason the loop exits
     let reason = loop {
         tokio::select! {
-            result = lines.next_line() => {
+            result = reader.read_u64() => {
             match result {
-                Ok(Some(line)) => {
-                    if let Ok(InputPacket::Direction { dir }) = serde_json::from_str(&line)
+                Ok(length) => {
+                    let mut buf = vec![0;length as usize];
+                    reader.read_exact(&mut buf).await.unwrap();
+                    if let Ok(InputPacket::Direction { dir }) = InputPacket::deserialize(&buf)
                     && tx.send(Packet::Direction {
                         player: player_id,
                         dir,
@@ -214,29 +198,21 @@ async fn handle_connection(
                     }
                 }
 
-                Ok(None) => break ConnectionEnd::Disconnect,
 
                 Err(_) => break ConnectionEnd:: Disconnect,
             }
         }
 
             Some(packet) = out_rx.recv() => {
-                let json = {
-                    let span = span!("Output Serialize");
-                    span.emit_color(0xFF0000);
-                    match serde_json::to_string(&packet) {
-                        Ok(json) => json,
-                        Err(_) => continue,
-                    }
-                };
 
-                if writer.write_all(json.as_bytes()).await.is_err() {
+                if writer.write_all(&packet.len().to_be_bytes()).await.is_err() {
                     break ConnectionEnd::Disconnect;
                 }
 
-                if writer.write_all(b"\n").await.is_err() {
+                if writer.write_all(packet.as_slice()).await.is_err() {
                     break ConnectionEnd::Disconnect;
                 }
+
                 {
                     let span = span!("Finished Sending");
                     span.emit_color(0x0000FF);

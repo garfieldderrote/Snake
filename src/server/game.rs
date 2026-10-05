@@ -168,7 +168,7 @@ impl GameSystem {
             // spawn new snake
             if world.snake(&player).is_none() {
                 world.new_snake(player);
-                network.add_snake(player, world.snake(&player).unwrap().clone());
+                network.add_snake(world.snake(&player).unwrap().clone());
             }
             // get buffered network input from player fetched from .receive()
             let input_dir = network.get_input_player(player);

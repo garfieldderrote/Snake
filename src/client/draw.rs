@@ -42,8 +42,8 @@ impl ClientWorld {
             .get_apples_mut()
             .retain(|a| !apples.iter().any(|b| a == b));
     }
-    pub fn add_snake(&mut self, snake: Snake, player: PlayerId) {
-        self.snakes.insert(player, snake);
+    pub fn add_snake(&mut self, snake: Snake) {
+        self.snakes.insert(snake.player, snake);
     }
     pub fn move_snake(&mut self, player: PlayerId, dir: Dir) {
         SnakeSystem::tick(self, Some(dir), &player);
