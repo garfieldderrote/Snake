@@ -1,5 +1,5 @@
 use crate::{
-    server::game::PlayerId,
+    PlayerId,
     util::{Cell, Dir, IVec2},
 };
 

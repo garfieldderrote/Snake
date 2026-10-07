@@ -1,22 +1,9 @@
 use std::io::{Write, stdin, stdout};
 
+use snake_client::Input;
+use snake_server::{Game, GameSystem};
 use tokio_util::sync::CancellationToken;
 use tracy_client::{Client, set_thread_name};
-
-use crate::{
-    client::input::Input,
-    server::{
-        game::{Game, GameSystem},
-        network::Network,
-    },
-};
-
-mod board;
-mod client;
-mod protocol;
-mod server;
-mod snake;
-mod util;
 
 enum LaunchOptions {
     Join(String),
@@ -62,13 +49,12 @@ async fn main() {
 
     shutdown.cancel();
 }
-
-async fn join(ip: String, shutdown: CancellationToken) {
+pub async fn join(ip: String, shutdown: CancellationToken) {
     let net_shutdown = shutdown.clone();
     println!("\r[Client] Init Input");
     let input = Input::new(shutdown.clone());
     println!("\r[Client] Init Network");
-    let network = client::network::Network::new(ip).await;
+    let network = snake_client::Network::new(ip).await;
     if let Some(network) = network {
         println!("\r[Client] Spawn Threads");
         network.spawn_threads(input, net_shutdown);
@@ -77,9 +63,8 @@ async fn join(ip: String, shutdown: CancellationToken) {
         shutdown.cancel();
     }
 }
-
 fn host(shutdown: CancellationToken) {
-    let mut network = Network::new(shutdown.clone());
+    let mut network = snake_server::Network::new(shutdown.clone());
     println!("\r[Server] Initialized Network");
     let mut game = Game::new();
     GameSystem::run(&mut game, &mut network, shutdown);

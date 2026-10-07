@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
+    PlayerId,
     board::Board,
-    server::game::PlayerId,
     snake::{Segment, Snake, SnakeState::Alive},
     util::{Dir, IVec2},
 };

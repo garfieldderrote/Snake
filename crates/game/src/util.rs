@@ -1,8 +1,7 @@
-use serde::{Deserialize, Serialize};
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct PlayerId(pub u64);
 
-use crate::server::game::PlayerId;
-
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct IVec2 {
     pub x: i32,
     pub y: i32,
@@ -26,7 +25,7 @@ impl IVec2 {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Dir {
     Up,
     Down,

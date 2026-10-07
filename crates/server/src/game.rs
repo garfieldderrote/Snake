@@ -5,16 +5,13 @@ use std::{
 };
 
 use rand::{RngExt, rng};
-use serde::{Deserialize, Serialize};
+use snake_core::{
+    Board, BoardSystem, Cell, Dir, GameWorld, IVec2, PlayerId, Snake, SnakeSystem, SnakeWorld,
+};
 use tokio_util::sync::CancellationToken;
 use tracy_client::span;
 
-use crate::{
-    board::{Board, BoardSystem},
-    server::network::Network,
-    snake::{Snake, SnakeSystem, SnakeWorld},
-    util::{Cell, Dir, IVec2},
-};
+use crate::network::Network;
 
 pub struct GameSystem;
 
@@ -26,8 +23,6 @@ pub struct MultiplayerWorld {
     pub board: Board,
     pub snakes: HashMap<PlayerId, Snake>,
 }
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub struct PlayerId(pub u64);
 
 impl SnakeWorld for MultiplayerWorld {
     fn snake(&self, player: &PlayerId) -> Option<&Snake> {
@@ -112,14 +107,6 @@ impl GameWorld for MultiplayerWorld {
     fn get_snake_hashmap(&self) -> &HashMap<PlayerId, Snake> {
         &self.snakes
     }
-}
-
-pub trait GameWorld {
-    fn new_snake(&mut self, id: PlayerId);
-    fn remove_snake(&mut self, id: &PlayerId);
-    fn get_snake_hashmap(&self) -> &HashMap<PlayerId, Snake>;
-    fn board(&self) -> &Board;
-    fn board_mut(&mut self) -> &mut Board;
 }
 
 impl GameSystem {
@@ -220,7 +207,7 @@ impl Game<MultiplayerWorld> {
 
         Game {
             world: MultiplayerWorld {
-                board: Board::new(20, 20, 15),
+                board: Board::new(25, 25, 15),
                 snakes,
             },
         }

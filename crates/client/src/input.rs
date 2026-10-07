@@ -4,9 +4,8 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+use snake_core::Dir;
 use tokio_util::sync::CancellationToken;
-
-use crate::util::Dir;
 
 pub struct Input {
     pub should_quit: bool,

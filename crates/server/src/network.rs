@@ -1,3 +1,7 @@
+use snake_core::{
+    Board, Deserialize, Difference, Dir, IVec2, InputPacket, OutputPacket, PlayerId, Serialize,
+    Snake,
+};
 use std::collections::{HashMap, VecDeque};
 use tokio_util::sync::CancellationToken;
 use tracy_client::{set_thread_name, span};
@@ -8,13 +12,6 @@ use tokio::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-use crate::{
-    board::Board,
-    protocol::{Deserialize, Difference, InputPacket, OutputPacket, Serialize},
-    server::game::PlayerId,
-    snake::Snake,
-    util::{Dir, IVec2},
-};
 pub struct Network {
     receiver: Receiver<Packet>,
     senders: HashMap<PlayerId, Sender<Vec<u8>>>,

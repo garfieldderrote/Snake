@@ -1,5 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
+use snake_core::{
+    Board, DecodeError, Deserialize, Difference, InputPacket, OutputPacket, Serialize,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -12,12 +15,8 @@ use tokio_util::sync::CancellationToken;
 use tracy_client::span;
 
 use crate::{
-    board::Board,
-    client::{
-        draw::{ClientWorld, draw_board},
-        input::Input,
-    },
-    protocol::{DecodeError, Deserialize, Difference, InputPacket, OutputPacket, Serialize},
+    draw::{ClientWorld, draw_board},
+    input::Input,
 };
 
 pub struct Network {

@@ -2,13 +2,7 @@ use std::collections::HashMap;
 
 use colored::{ColoredString, Colorize};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-
-use crate::{
-    board::Board,
-    server::game::PlayerId,
-    snake::{Snake, SnakeSystem, SnakeWorld},
-    util::{Cell, Dir, IVec2},
-};
+use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Snake, SnakeSystem, SnakeWorld};
 
 pub trait DrawWorld {
     fn get_height(&self) -> i32;

@@ -1,15 +1,14 @@
 use rand::RngExt;
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    server::game::GameWorld,
+    GameWorld,
     snake::SnakeWorld,
     util::{Cell, IVec2},
 };
 
 pub struct BoardSystem;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Board {
     pub size: (i32, i32),
     pub apples: Vec<IVec2>,
