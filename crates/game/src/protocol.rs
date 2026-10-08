@@ -9,6 +9,7 @@ use crate::{
 
 pub enum InputPacket {
     Direction { dir: Dir },
+    Ping,
 }
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ pub enum OutputPacket {
     },
     Difference(Difference),
     TickFinished,
+    Pong,
 }
 
 pub trait Serialize {
@@ -109,6 +111,9 @@ impl Serialize for OutputPacket {
             }
             OutputPacket::TickFinished => {
                 result.push(0x06);
+            }
+            OutputPacket::Pong => {
+                result.push(0x07);
             }
         };
         result
@@ -256,6 +261,7 @@ impl Deserialize for OutputPacket {
                 OutputPacket::Difference(Difference::SnakeMovements(snakes))
             }
             0x06 => OutputPacket::TickFinished,
+            0x07 => OutputPacket::Pong,
             _ => {
                 return Err(DecodeError::InvalidPacketType(0x06));
             }
@@ -343,6 +349,9 @@ impl Serialize for InputPacket {
                     }
                 }
             }
+            InputPacket::Ping => {
+                result.push(0x07);
+            }
         }
         result
     }
@@ -367,6 +376,7 @@ impl Deserialize for InputPacket {
                 };
                 Ok(InputPacket::Direction { dir })
             }
+            0x07 => Ok(InputPacket::Ping),
             _ => Err(DecodeError::InvalidPacketType(0x00)),
         }
     }

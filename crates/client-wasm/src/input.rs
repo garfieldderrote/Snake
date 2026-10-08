@@ -1,7 +1,12 @@
 use js_sys::Uint8Array;
 use snake_core::{Dir, InputPacket, Serialize};
-use wasm_bindgen::{JsCast, prelude::Closure};
+use wasm_bindgen::{
+    JsCast,
+    prelude::{Closure, wasm_bindgen},
+};
 use web_sys::{KeyboardEvent, WebSocket, window};
+
+use crate::WEBSOCKET;
 
 pub struct Input {}
 
@@ -20,13 +25,6 @@ impl Input {
             let packet = InputPacket::Direction { dir };
             let array = Uint8Array::from(packet.serialize().as_slice());
             _ = websocket.send_with_array_buffer(&array.buffer());
-            match key.as_str() {
-                "w" | "a" | "s" | "d" => {
-                    // Send the key through your websocket
-                    let _ = websocket.send_with_str(&key);
-                }
-                _ => {}
-            }
         });
 
         window()
@@ -37,4 +35,25 @@ impl Input {
         // IMPORTANT: keep the closure alive!
         closure.forget();
     }
+}
+
+#[wasm_bindgen]
+pub fn input(dir: String) {
+    let dir = match dir.as_str() {
+        "up" => Dir::Up,
+        "down" => Dir::Down,
+        "left" => Dir::Left,
+        "right" => Dir::Right,
+        _ => return,
+    };
+    let packet = InputPacket::Direction { dir };
+    WEBSOCKET.with(|ws| {
+        if let Some(websocket) = ws.borrow().as_ref() {
+            let array = Uint8Array::from(packet.serialize().as_slice());
+
+            if let Err(error) = websocket.send_with_array_buffer(&array.buffer()) {
+                web_sys::console::error_1(&error);
+            }
+        }
+    });
 }

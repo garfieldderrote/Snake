@@ -71,6 +71,9 @@ impl Snake {
         }
         Cell::Empty
     }
+    pub fn get_segments(&self) -> Vec<Segment> {
+        self.segments.clone()
+    }
     pub fn get_head_pos(&self) -> IVec2 {
         self.segments[0].pos
     }

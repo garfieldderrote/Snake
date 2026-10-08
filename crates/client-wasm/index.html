@@ -2,9 +2,61 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
     <title>Snake</title>
+
+    <link data-trunk rel="rust">
+    <link data-trunk rel="css" href="style.css">
 </head>
-<body style="background-color: black;">
-    <canvas id="canvas" width="800" height="800" style="background-color: black;"></canvas>
+
+<body>
+
+<div id="menu">
+    <h1>SNAKE</h1>
+
+    <div class="field">
+        <label for="player-name">Name</label>
+        <input
+            id="player-name"
+            type="text"
+            placeholder="Enter your name"
+            maxlength="20"
+            autocomplete="off"
+        >
+    </div>
+
+    <div class="field">
+        <label for="server-ip">Server IP</label>
+        <input
+            id="server-ip"
+            type="text"
+            placeholder="127.0.0.1:9000"
+            value="127.0.0.1:9000"
+            autocomplete="off"
+        >
+    </div>
+
+    <button id="play-button">PLAY</button>
+</div>
+
+<div id="game">
+  <div id="ping">-- ms</div>
+    <canvas id="canvas" width="800" height="800"></canvas>
+
+    <div id="controls">
+        <button class="control-button" data-dir="up">▲</button>
+
+        <div class="control-row">
+            <button class="control-button" data-dir="left">◀</button>
+            <button class="control-button" data-dir="down">▼</button>
+            <button class="control-button" data-dir="right">▶</button>
+        </div>
+    </div>
+</div>
+
+<script data-trunk type="module" src="main.js"></script>
+
 </body>
 </html>

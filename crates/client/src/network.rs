@@ -112,6 +112,7 @@ impl Network {
                 span.emit_color(0xFF0000);
                 draw_board(world);
             }
+            OutputPacket::Pong => {}
         }
     }
     pub fn spawn_send_thread(

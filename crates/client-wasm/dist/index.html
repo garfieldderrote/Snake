@@ -2,14 +2,15 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Snake</title>
-<link rel="modulepreload" href="/snake-client-wasm-ed481cf11c088724.js" crossorigin="anonymous" integrity="sha384-sKR6SnQ0+Fu9EYRGuSQQ4N012MBK63UKriwI2wa72xI4sRfJfxqeWpcJR5XWLKXo"><link rel="preload" href="/snake-client-wasm-ed481cf11c088724_bg.wasm" crossorigin="anonymous" integrity="sha384-3/hT1ZKl14YmP18sG+mg3P1ZzQYSMpQqRitI4JZfiIV3eMXaE6Wkh/Gnud7oZajC" as="fetch" type="application/wasm"></head>
-<body style="background-color: black;">
-    <canvas id="canvas" width="800" height="800" style="background-color: black;"></canvas>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
+    <title>Snake</title>
+
+    
 <script type="module">
-import init, * as bindings from '/snake-client-wasm-ed481cf11c088724.js';
-const wasm = await init({ module_or_path: '/snake-client-wasm-ed481cf11c088724_bg.wasm' });
+import init, * as bindings from '/snake-client-wasm-cfa043542a50b33b.js';
+const wasm = await init({ module_or_path: '/snake-client-wasm-cfa043542a50b33b_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -17,7 +18,58 @@ window.wasmBindings = bindings;
 
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
-</script><script>"use strict";
+</script>
+    <link rel="stylesheet" href="/style-ec0e0bd7b3727fd1.css" integrity="sha384-hMX+dWiTZlymT02m8uo5NtdMuHmy5bpGKApj6ybszjFqq5OsQWGrl+mc7+LiuJ/m"/>
+<link rel="modulepreload" href="/snake-client-wasm-cfa043542a50b33b.js" crossorigin="anonymous" integrity="sha384-Xl10nRwIG1V6S4TdbRx84CJY1skSxsO/qBMhuTGQkrQAyh3RovU3/k1Ajx76zOdN"><link rel="preload" href="/snake-client-wasm-cfa043542a50b33b_bg.wasm" crossorigin="anonymous" integrity="sha384-RjAghYlZLxVYcFuNIqSiUn48TdhgqVsgfKGyc2HKMaiGXGb3nH+6gR65K2tsrzRo" as="fetch" type="application/wasm"></head>
+
+<body>
+
+<div id="menu">
+    <h1>SNAKE</h1>
+
+    <div class="field">
+        <label for="player-name">Name</label>
+        <input
+            id="player-name"
+            type="text"
+            placeholder="Enter your name"
+            maxlength="20"
+            autocomplete="off"
+        >
+    </div>
+
+    <div class="field">
+        <label for="server-ip">Server IP</label>
+        <input
+            id="server-ip"
+            type="text"
+            placeholder="127.0.0.1:9000"
+            value="127.0.0.1:9000"
+            autocomplete="off"
+        >
+    </div>
+
+    <button id="play-button">PLAY</button>
+</div>
+
+<div id="game">
+  <div id="ping">-- ms</div>
+    <canvas id="canvas" width="800" height="800"></canvas>
+
+    <div id="controls">
+        <button class="control-button" data-dir="up">▲</button>
+
+        <div class="control-row">
+            <button class="control-button" data-dir="left">◀</button>
+            <button class="control-button" data-dir="down">▼</button>
+            <button class="control-button" data-dir="right">▶</button>
+        </div>
+    </div>
+</div>
+
+<script src="/main-96b7ea13f9c03d3d.js" integrity="sha384-bl716/HhY4zQx69qo1EDJnxWfx4npBDjloAeEjxp3VaiIDy8ia5geqOMMDx30VHJ" type="module"></script>
+
+<script>"use strict";
 
 (function () {
 

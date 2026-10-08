@@ -4,7 +4,7 @@ use snake_core::{
     Snake,
 };
 use std::collections::{HashMap, VecDeque};
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
 use tracy_client::{set_thread_name, span};
 
@@ -33,6 +33,7 @@ enum Packet {
     Disconnect {
         player: PlayerId,
     },
+    Ping,
 }
 
 impl Network {
@@ -110,6 +111,9 @@ impl Network {
                     self.players.retain(|p| p != &player);
                     disconnected_players.push(player);
                 }
+                Packet::Ping => {
+                    //self.send_pong();
+                }
             };
         }
         (disconnected_players, connected_players)
@@ -168,6 +172,10 @@ impl Network {
         let packet = OutputPacket::TickFinished;
         self.send_packet(packet);
     }
+    // pub fn send_pong(&self) {
+    //     let packet = OutputPacket::Pong;
+    //     self.send_packet(packet);
+    // }
 }
 
 enum ConnectionEnd {
@@ -258,15 +266,7 @@ async fn handle_websocket(
             result = websocket.next() => {
             match result {
                 Some(Ok(Message::Binary(buf))) => {
-                    //TODO: length bounds check
-                    if let Ok(InputPacket::Direction { dir }) = InputPacket::deserialize(&buf)
-                    && tx.send(Packet::Direction {
-                        player: player_id,
-                        dir,
-                    }).await.is_err()
-                    {
-                        break ConnectionEnd::Disconnect;
-                    }
+                    process_recieved_bytes(&buf, tx.clone(), player_id,&mut websocket).await;
                 }
                 Some(Ok(_)) => {}
 
@@ -288,15 +288,42 @@ async fn handle_websocket(
                 }
 
             }
-            _ = shutdown.cancelled() => {
-                break ConnectionEnd::Shutdown;
-            }
+                _ = shutdown.cancelled() => {
+                    break ConnectionEnd::Shutdown;
+                }
 
-            else => break ConnectionEnd::Disconnect,
+                else => break ConnectionEnd::Disconnect,
             }
     };
 
     if matches!(reason, ConnectionEnd::Disconnect) {
         _ = tx.send(Packet::Disconnect { player: player_id }).await;
+    }
+}
+
+async fn process_recieved_bytes(
+    bytes: &[u8],
+    tx: Sender<Packet>,
+    player_id: PlayerId,
+    websocket: &mut WebSocketStream<TcpStream>,
+) {
+    match InputPacket::deserialize(bytes) {
+        Ok(InputPacket::Direction { dir }) => {
+            if tx
+                .send(Packet::Direction {
+                    player: player_id,
+                    dir,
+                })
+                .await
+                .is_err()
+            {}
+        }
+        Ok(InputPacket::Ping) => {
+            let packet = OutputPacket::Pong;
+            let data = packet.serialize();
+
+            _ = websocket.send(Message::Binary(data.into())).await.is_err();
+        }
+        Err(_) => {}
     }
 }

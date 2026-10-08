@@ -23,5 +23,7 @@ web-sys = { version = "0.3.106", features = [
   "HtmlCanvasElement",
   "Window",
   "KeyboardEvent",
+  "CssStyleDeclaration",
 ] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
+console_error_panic_hook = "0.1.7"

@@ -1,0 +1,69 @@
+<!DOCTYPE html> <html> 
+  <head> 
+    <meta charset="utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake</title>
+<link data-trunk rel="rust" />
+<style> * { box-sizing: border-box; }
+
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; background: #111827; color: white; }
+
+body { display: flex; align-items: center; justify-content: center; }
+
+/* Main menu */ #menu { width: 360px; padding: 40px; background: #1f2937; border: 2px solid #374151; border-radius: 16px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); }
+
+#menu h1 { margin: 0 0 30px; text-align: center; font-size: 42px; color: #4ade80; }
+
+.field { margin-bottom: 18px; }
+
+.field label { display: block; margin-bottom: 7px; font-size: 14px; color: #9ca3af; }
+
+.field input { width: 100%; padding: 12px 14px; border: 2px solid #374151; border-radius: 8px; outline: none; background: #111827; color: white; font-size: 16px; }
+
+.field input:focus { border-color: #4ade80; }
+
+#play-button { width: 100%; margin-top: 10px; padding: 13px; border: none; border-radius: 8px; background: #22c55e; color: white; font-size: 17px; font-weight: bold; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+
+#play-button:hover { background: #16a34a; }
+
+#play-button:active { transform: scale(0.98); }
+
+/* Game canvas */ #canvas { display: none; background-color: #111827; } </style> 
+  </head>
+
+<body>
+
+<div id="menu"> <h1>SNAKE</h1>
+
+<div class="field"> <label for="player-name">Name</label> <input id="player-name" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" > </div>
+
+<div class="field"> <label for="server-ip">Server IP</label> <input id="server-ip" type="text" placeholder="127.0.0.1:9000" value="127.0.0.1:9000" autocomplete="off" > </div>
+
+<button id="play-button">PLAY</button> </div>
+
+<canvas id="canvas" width="800" height="800"> </canvas>
+
+<script type="module"> 
+
+const menu = document.getElementById("menu"); const canvas = document.getElementById("canvas");
+
+const playerName = document.getElementById("player-name"); const serverIp = document.getElementById("server-ip"); const playButton = document.getElementById("play-button");
+
+playButton.addEventListener("click", () => { const name = playerName.value.trim(); const ip = serverIp.value.trim();
+
+if (!name) { playerName.focus(); return; }
+
+if (!ip) { serverIp.focus(); return; }
+
+console.log("Player:", name); console.log("Server:", ip);
+
+// Hide menu and show game menu.style.display = "none"; canvas.style.display = "block";
+  menu.style.display = "none";
+  canvas.style.display = "block"
+  window.wasmBindings.start(name,ip)
+});
+
+// Allow pressing Enter to start the game playerName.addEventListener("keydown", (event) => { if (event.key === "Enter") { playButton.click(); } });
+
+serverIp.addEventListener("keydown", (event) => { if (event.key === "Enter") { playButton.click(); } }); </script>
+
+</body> </html>

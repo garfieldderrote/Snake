@@ -55,6 +55,8 @@ snake:
 0x06 => TickFinished
 // no payload for now
 
+0x07 => Pong
+
 ServerIncoming:
 types:
 
@@ -64,3 +66,5 @@ types:
 +----------------+
 
 0x01 => RequestGameState
+
+0x07 => Ping
