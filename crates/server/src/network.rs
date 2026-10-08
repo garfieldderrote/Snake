@@ -47,16 +47,20 @@ impl Network {
         let listener_shutdown = shutdown.clone();
         tokio::spawn(async move {
             set_thread_name!("Connection Listener");
-            let listener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
+            let weblistener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
+            let tcplistener = TcpListener::bind("0.0.0.0:9001").await.unwrap();
             println!("[Server/Network] Init Bind");
             let mut next_player_id = 0u64;
             loop {
-                let (socket, _) = tokio::select! {
-                    Ok(socket) = listener.accept() => socket,
+                let websocket;
+                let (socket, addr) = tokio::select! {
+                    Ok(socket) = tcplistener.accept() => {websocket = false; socket},
+                    Ok(socket) = weblistener.accept() => {websocket = true; socket},
                     _ = listener_shutdown.cancelled() => {
                         break;
                     }
                 };
+                println!("New Connection! from {} (websocket: {})", addr, websocket);
 
                 let player_id = PlayerId(next_player_id);
                 next_player_id += 1;
@@ -74,8 +78,11 @@ impl Network {
 
                 tokio::spawn(async move {
                     set_thread_name!("Player Listener/Sender");
-                    println!("New Connection!");
-                    handle_websocket(socket, player_id, tx, out_rx, handler_shutdown).await
+                    if websocket {
+                        handle_websocket(socket, player_id, tx, out_rx, handler_shutdown).await
+                    } else {
+                        handle_connection(socket, player_id, tx, out_rx, handler_shutdown).await
+                    }
                 });
             }
         });

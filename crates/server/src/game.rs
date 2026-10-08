@@ -213,3 +213,9 @@ impl Game<MultiplayerWorld> {
         }
     }
 }
+
+impl Default for Game<MultiplayerWorld> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

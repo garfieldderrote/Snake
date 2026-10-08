@@ -3,13 +3,13 @@
 <head>
     <meta charset="utf-8">
     <title>Snake</title>
-<link rel="modulepreload" href="/snake-client-wasm-84f2412ad4be0bb5.js" crossorigin="anonymous" integrity="sha384-sKR6SnQ0+Fu9EYRGuSQQ4N012MBK63UKriwI2wa72xI4sRfJfxqeWpcJR5XWLKXo"><link rel="preload" href="/snake-client-wasm-84f2412ad4be0bb5_bg.wasm" crossorigin="anonymous" integrity="sha384-5uf3pMV/q8SnTD4FkWHd5tbwTaAOT0PHcXQ8yQxXc+zf5fBO7rxVZGcVMN7TQTI0" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/snake-client-wasm-ed481cf11c088724.js" crossorigin="anonymous" integrity="sha384-sKR6SnQ0+Fu9EYRGuSQQ4N012MBK63UKriwI2wa72xI4sRfJfxqeWpcJR5XWLKXo"><link rel="preload" href="/snake-client-wasm-ed481cf11c088724_bg.wasm" crossorigin="anonymous" integrity="sha384-3/hT1ZKl14YmP18sG+mg3P1ZzQYSMpQqRitI4JZfiIV3eMXaE6Wkh/Gnud7oZajC" as="fetch" type="application/wasm"></head>
 <body style="background-color: black;">
     <canvas id="canvas" width="800" height="800" style="background-color: black;"></canvas>
 
 <script type="module">
-import init, * as bindings from '/snake-client-wasm-84f2412ad4be0bb5.js';
-const wasm = await init({ module_or_path: '/snake-client-wasm-84f2412ad4be0bb5_bg.wasm' });
+import init, * as bindings from '/snake-client-wasm-ed481cf11c088724.js';
+const wasm = await init({ module_or_path: '/snake-client-wasm-ed481cf11c088724_bg.wasm' });
 
 
 window.wasmBindings = bindings;

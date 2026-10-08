@@ -1,7 +1,7 @@
-use js_sys::{ArrayBuffer, Uint8Array};
+use js_sys::Uint8Array;
 use snake_core::{Dir, InputPacket, Serialize};
 use wasm_bindgen::{JsCast, prelude::Closure};
-use web_sys::{BinaryType::Arraybuffer, KeyboardEvent, WebSocket, window};
+use web_sys::{KeyboardEvent, WebSocket, window};
 
 pub struct Input {}
 

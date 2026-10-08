@@ -9,19 +9,13 @@ mod draw;
 mod input;
 mod network;
 
-enum LaunchOptions {
-    Join(String),
-    Host,
-    ServerOnly,
-    Quit,
-}
-
 #[tokio::main]
 async fn main() {
+    let ip = get_user_choice_ip();
     let shutdown = CancellationToken::new();
     let client_shutdown = shutdown.clone();
     let _client = Client::start(); // for tracy debug
-    join("localhost".to_string(), client_shutdown).await;
+    join(ip, client_shutdown).await;
     // Waits for Ctrl_C or the token to cancel
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
@@ -48,24 +42,9 @@ pub async fn join(ip: String, shutdown: CancellationToken) {
     }
 }
 
-fn get_user_choice() -> LaunchOptions {
-    println!(
-        " 1) Join a Game \n 2) Host a Game \n 3) Server Only \n 4) Quit \n Choose one of the Options:"
-    );
-    loop {
-        match read_string().as_str() {
-            "1" => LaunchOptions::Join,
-            "2" => return LaunchOptions::Host,
-            "3" => return LaunchOptions::ServerOnly,
-            "4" => return LaunchOptions::Quit,
-            _ => {
-                continue;
-            }
-        };
-        println!("Enter IP Address");
-        let ip = read_string();
-        return LaunchOptions::Join(ip);
-    }
+fn get_user_choice_ip() -> String {
+    println!("Enter Ip Address");
+    read_string()
 }
 
 fn read_string() -> String {

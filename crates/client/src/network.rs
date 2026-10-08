@@ -27,7 +27,7 @@ impl Network {
     pub async fn new(ip: String) -> Option<Self> {
         sleep(Duration::from_millis(10)).await;
         println!("\r[Client/Network] new()");
-        if let Ok(stream) = TcpStream::connect(format!("{}:9000", ip)).await {
+        if let Ok(stream) = TcpStream::connect(format!("{}:9001", ip)).await {
             println!("\r[Client/Network] Init");
             return Some(Network { stream });
         }

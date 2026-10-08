@@ -10,7 +10,6 @@ use crate::{draw::Draw, input::Input, world::ClientWorld};
 
 mod draw;
 mod input;
-mod network;
 mod world;
 
 #[wasm_bindgen(start)]
@@ -79,7 +78,6 @@ fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &
         }
         OutputPacket::TickFinished => {
             draw.draw_world(world);
-            //draw_board(world);
         }
     }
 }

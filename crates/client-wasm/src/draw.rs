@@ -1,4 +1,4 @@
-use snake_core::{Cell, IVec2};
+use snake_core::{Cell, IVec2, PlayerId};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
@@ -37,6 +37,11 @@ impl DrawWorld for ClientWorld {
     }
 }
 
+fn get_player_skin<'a>(player: PlayerId) -> &'a str {
+    let player_skins = ["blue", "green", "yellow"];
+    player_skins[player.0 as usize % player_skins.len()]
+}
+
 impl Draw {
     pub fn new() -> Result<Self, JsValue> {
         let window = web_sys::window().expect("No global window found");
@@ -65,15 +70,18 @@ impl Draw {
         for y in 0..world.get_height() {
             for x in 0..world.get_width() {
                 match world.get_cell_at(IVec2::new(x, y)) {
-                    Cell::Empty => self.context.set_fill_style_str("grey"),
+                    Cell::Empty => self.context.set_fill_style_str("darkgrey"),
                     Cell::Apple => self.context.set_fill_style_str("red"),
-                    Cell::Snake(_, player) => self.context.set_fill_style_str("blue"),
+                    Cell::Snake(_, player) => {
+                        let color = get_player_skin(player);
+                        self.context.set_fill_style_str(color);
+                    }
                 }
                 self.context.fill_rect(
-                    cell_size as f64 * x as f64,
-                    self.size.1 as f64 - (cell_size as f64 * y as f64),
-                    cell_size as f64,
-                    cell_size as f64,
+                    cell_size as f64 * x as f64 + 1.0,
+                    self.size.1 as f64 - (cell_size as f64 * y as f64) + 1.0,
+                    cell_size as f64 - 2.0,
+                    cell_size as f64 - 2.0,
                 );
             }
         }
