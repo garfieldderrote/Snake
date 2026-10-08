@@ -7,7 +7,6 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1.53.2", features = ["full"] }
 tokio-util = "0.7.19"
-snake-core = { path = "../game" }
 snake-server = { path = "../server" }
 snake-client = { path = "../client" }
 tracy-client = { version = "0.19.0", features = ["system-tracing"] }

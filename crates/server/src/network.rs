@@ -1,8 +1,10 @@
+use futures_util::{SinkExt, StreamExt};
 use snake_core::{
     Board, Deserialize, Difference, Dir, IVec2, InputPacket, OutputPacket, PlayerId, Serialize,
     Snake,
 };
 use std::collections::{HashMap, VecDeque};
+use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
 use tracy_client::{set_thread_name, span};
 
@@ -72,7 +74,8 @@ impl Network {
 
                 tokio::spawn(async move {
                     set_thread_name!("Player Listener/Sender");
-                    handle_connection(socket, player_id, tx, out_rx, handler_shutdown).await
+                    println!("New Connection!");
+                    handle_websocket(socket, player_id, tx, out_rx, handler_shutdown).await
                 });
             }
         });
@@ -183,6 +186,7 @@ async fn handle_connection(
             result = reader.read_u64() => {
             match result {
                 Ok(length) => {
+                    //TODO: length bounds check
                     let mut buf = vec![0;length as usize];
                     reader.read_exact(&mut buf).await.unwrap();
                     if let Ok(InputPacket::Direction { dir }) = InputPacket::deserialize(&buf)
@@ -226,6 +230,66 @@ async fn handle_connection(
 
     if matches!(reason, ConnectionEnd::Disconnect) {
         _ = writer.shutdown().await;
+        _ = tx.send(Packet::Disconnect { player: player_id }).await;
+    }
+}
+async fn handle_websocket(
+    socket: TcpStream,
+    player_id: PlayerId,
+    tx: mpsc::Sender<Packet>,
+    mut out_rx: mpsc::Receiver<Vec<u8>>,
+    shutdown: CancellationToken,
+) {
+    let mut websocket = match accept_async(socket).await {
+        Ok(websocket) => websocket,
+        Err(_) => return,
+    };
+    //let mut lines = BufReader::new(reader).lines();
+    // get the reason the loop exits
+    let reason = loop {
+        tokio::select! {
+            result = websocket.next() => {
+            match result {
+                Some(Ok(Message::Binary(buf))) => {
+                    //TODO: length bounds check
+                    if let Ok(InputPacket::Direction { dir }) = InputPacket::deserialize(&buf)
+                    && tx.send(Packet::Direction {
+                        player: player_id,
+                        dir,
+                    }).await.is_err()
+                    {
+                        break ConnectionEnd::Disconnect;
+                    }
+                }
+                Some(Ok(_)) => {}
+
+
+                Some(Err(_)) => break ConnectionEnd:: Disconnect,
+                None => break ConnectionEnd:: Disconnect,
+            }
+        }
+
+            Some(packet) = out_rx.recv() => {
+
+                if websocket.send(Message::Binary(packet.into())).await.is_err(){
+                    break ConnectionEnd::Disconnect;
+                }
+
+                {
+                    let span = span!("Finished Sending");
+                    span.emit_color(0x0000FF);
+                }
+
+            }
+            _ = shutdown.cancelled() => {
+                break ConnectionEnd::Shutdown;
+            }
+
+            else => break ConnectionEnd::Disconnect,
+            }
+    };
+
+    if matches!(reason, ConnectionEnd::Disconnect) {
         _ = tx.send(Packet::Disconnect { player: player_id }).await;
     }
 }
