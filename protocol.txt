@@ -1,0 +1,60 @@
+
+Snake-Protocol:
+
++-------------+----------+---------+
+| length: u32 | type: u8 | payload |
++-------------+----------+---------+
+// length of type + payload
+
+Server Outgoing:
+types:
+0x00 => EntireState
++--------------------+--------------------+----------------+-----------------+
+| amount_apples: u16 | apples: xyxyxyxyxy | board_size: xy | snakes: (below) |
++--------------------+--------------------+----------------+-----------------+
+snake:
++-------------------+-------------+--------------------------------+
+| length_bytes: u16 | player: u64 | segments: dir,xy,dir,xy,dir,xy | // dir: 0x00-0x03, x,y: u32
++-------------------+-------------+--------------------------------+
+
+0x01 => AddApple
++-----------------------+
+| positions: xyxyxyxyxy | // where x,y: u32
++-----------------------+
+
+0x02 => RemoveApple
++-----------------------+
+| positions: xyxyxyxyxy | // where x,y: u32
++-----------------------+
+
+0x03 => AddSnake
++--------------------------+
+| snake: (described above) |
++--------------------------+
+
+0x04 => RemoveSnake
++----------------+
+| player_id: u64 |
++----------------+
+
+0x05 => SnakeMovement
++----------------+----------------+
+| player_id: u64 | dir: 0x00-0x03 | per player
++----------------+----------------+
+
+0x06 => TickFinished
+// no payload for now
+
+0x07 => Pong
+
+ServerIncoming:
+types:
+
+0x00 => InputDir
++----------------+
+| dir: 0x00-0x03 |
++----------------+
+
+0x01 => RequestGameState
+
+0x07 => Ping

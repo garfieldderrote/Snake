@@ -1,12 +1,24 @@
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
 use snake_core::{Cell, Dir, IVec2, PlayerId, Segment};
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use crate::world::ClientWorld;
 
+struct HeadAnimation {
+    start_offs: IVec2,
+    pixel_offs: IVec2,
+    target_offs: IVec2,
+    rotation: f64,
+    elapsed: f64,
+    duration: f64,
+}
+
 pub struct Draw {
     context: CanvasRenderingContext2d,
     size: (u32, u32),
+    head_animations: HashMap<PlayerId, HeadAnimation>,
 }
 
 pub trait DrawWorld {
@@ -63,31 +75,38 @@ impl Draw {
             .expect("Could not get 2D context")
             .dyn_into::<CanvasRenderingContext2d>()?;
         let size = (canvas.width(), canvas.height());
-        Ok(Draw { context, size })
+        Ok(Draw {
+            context,
+            size,
+            head_animations: HashMap::new(),
+        })
     }
-    // pub fn draw_world<W: DrawWorld>(&self, world: &mut W) {
-    //     let cell_size = self.size.0 / world.get_width() as u32;
-    //     for y in 0..world.get_height() {
-    //         for x in 0..world.get_width() {
-    //             match world.get_cell_at(IVec2::new(x, y)) {
-    //                 Cell::Empty => self.context.set_fill_style_str("darkgrey"),
-    //                 Cell::Apple => self.context.set_fill_style_str("red"),
-    //                 Cell::Snake(_, player) => {
-    //                     let color = get_player_skin(&player);
-    //                     self.context.set_fill_style_str(color);
-    //                 }
-    //             }
-    //             self.context.fill_rect(
-    //                 cell_size as f64 * x as f64 + 1.0,
-    //                 self.size.1 as f64 - (cell_size as f64 * y as f64) + 1.0,
-    //                 cell_size as f64 - 2.0,
-    //                 cell_size as f64 - 2.0,
-    //             );
-    //         }
-    //     }
-    // }
-
-    pub fn draw_world(&self, world: &mut ClientWorld) {
+    pub fn draw_world(&mut self, world: &mut ClientWorld) {
+        let cell_size = self.size.0 as f64 / world.get_width() as f64;
+        for (player, snake) in world.snakes() {
+            let halftile = match snake.segments[0].dir {
+                Dir::Up => IVec2::new(0, (cell_size / 2.0) as i32),
+                Dir::Down => IVec2::new(0, (-cell_size / 2.0) as i32),
+                Dir::Left => IVec2::new((cell_size / 2.0) as i32, 0),
+                Dir::Right => IVec2::new((-cell_size / 2.0) as i32, 0),
+            };
+            let head_pixel_pos = self.cell_center(&snake.segments[0].pos, cell_size);
+            let head_pixel_pos = IVec2::new(head_pixel_pos.0 as i32, head_pixel_pos.1 as i32);
+            self.head_animations.insert(
+                *player,
+                HeadAnimation {
+                    start_offs: head_pixel_pos.add(&halftile),
+                    pixel_offs: head_pixel_pos.add(&halftile),
+                    target_offs: head_pixel_pos.add(&halftile.scale(-1)),
+                    rotation: 0.0,
+                    elapsed: 0.0,
+                    duration: 200.0, // 200ms
+                },
+            );
+        }
+        //self.draw_frame(world, 0.0);
+    }
+    pub fn draw_frame(&mut self, world: &ClientWorld, dt: f64) {
         let cell_size = self.size.0 as f64 / world.get_width() as f64;
         let width = world.get_width();
         let height = world.get_height();
@@ -133,29 +152,32 @@ impl Draw {
             if segments.is_empty() {
                 continue;
             }
+            let animation = self.head_animations.get_mut(player).unwrap();
+            let pixel_offs = animation.pixel_offs;
+            animation.elapsed = (animation.elapsed + dt).min(animation.duration);
+
+            let t = (animation.elapsed / animation.duration).clamp(0.0, 1.0);
+
+            animation.pixel_offs.x = animation.start_offs.x
+                + ((animation.target_offs.x as f64 - animation.start_offs.x as f64) * t) as i32;
+
+            animation.pixel_offs.y = animation.start_offs.y
+                + ((animation.target_offs.y as f64 - animation.start_offs.y as f64) * t) as i32;
 
             let color = get_player_skin(player);
-            self.draw_snake_outline(&segments, cell_size);
-            self.draw_snake_body(&segments, color, cell_size);
-            self.draw_snake_head(&segments[0], color, cell_size);
+            self.draw_snake_outline(&segments, cell_size, pixel_offs);
+            self.draw_snake_body(&segments, color, cell_size, pixel_offs);
+            self.draw_snake_head(&segments[0], color, cell_size, pixel_offs);
         }
     }
 
-    fn draw_snake_body(&self, segments: &[Segment], color: &str, cell_size: f64) {
-        let radius = cell_size * 0.34;
-
-        self.context.set_fill_style_str(color);
-
-        for segment in segments.iter() {
-            let (cx, cy) = self.cell_center(&segment.pos, cell_size);
-
-            self.context.begin_path();
-            self.context
-                .arc(cx, cy, radius, 0.0, std::f64::consts::TAU)
-                .unwrap();
-            self.context.fill();
-        }
-
+    fn draw_snake_body(
+        &self,
+        segments: &[Segment],
+        color: &str,
+        cell_size: f64,
+        pixel_offs: IVec2,
+    ) {
         // Connect the segments with a thick line.
         //
         // This makes corners smooth instead of looking like
@@ -168,11 +190,14 @@ impl Draw {
         if segments.len() > 1 {
             self.context.begin_path();
 
-            let (x, y) = self.cell_center(&segments[1].pos, cell_size);
+            // let (mut x, mut y) = self.cell_center(&segments[0].pos, cell_size);
+            // x += pixel_offs.x as f64;
+            // y += pixel_offs.y as f64;
 
-            self.context.move_to(x, y);
+            self.context
+                .move_to(pixel_offs.x as f64, pixel_offs.y as f64);
 
-            for segment in segments.iter() {
+            for segment in segments.iter().skip(1) {
                 let (x, y) = self.cell_center(&segment.pos, cell_size);
                 self.context.line_to(x, y);
             }
@@ -181,17 +206,11 @@ impl Draw {
         }
     }
 
-    fn draw_snake_head(&self, segment: &Segment, color: &str, cell_size: f64) {
-        let (cx, cy) = self.cell_center(&segment.pos, cell_size);
+    fn draw_snake_head(&self, segment: &Segment, color: &str, cell_size: f64, pixel_offs: IVec2) {
+        let cx = pixel_offs.x as f64;
+        let cy = pixel_offs.y as f64;
 
         let radius = cell_size * 0.34;
-
-        // self.context.set_fill_style_str(color);
-        // self.context.begin_path();
-        // self.context
-        //     .arc(cx, cy, radius, 0.0, std::f64::consts::TAU)
-        //     .unwrap();
-        // self.context.fill();
 
         // Eyes
         let eye_offset = cell_size * 0.28;
@@ -213,12 +232,10 @@ impl Draw {
 
         self.context.begin_path();
 
-        let (x, y) = self.cell_center(&segment.pos, cell_size);
-
-        self.context.move_to(x, y);
+        self.context.move_to(cx, cy);
 
         self.context
-            .line_to(x + forward_x * nose_size, y + forward_y * nose_size);
+            .line_to(cx + forward_x * nose_size, cy + forward_y * nose_size);
 
         self.context.stroke();
 
@@ -274,7 +291,7 @@ impl Draw {
             self.context.fill();
         }
     }
-    fn draw_snake_outline(&self, segments: &[Segment], cell_size: f64) {
+    fn draw_snake_outline(&self, segments: &[Segment], cell_size: f64, head_pixel_offs: IVec2) {
         if segments.len() < 2 {
             return;
         }
@@ -287,18 +304,21 @@ impl Draw {
         self.context.begin_path();
 
         // Start at the head so the outline connects underneath it.
-        let (x, y) = self.cell_center(&segments[0].pos, cell_size);
+        let x = head_pixel_offs.x as f64;
+        let y = head_pixel_offs.y as f64;
         self.context.move_to(x, y);
 
         // Follow the entire snake.
-        for segment in segments.iter() {
-            let (x, y) = self.cell_center(&segment.pos, cell_size);
-            self.context.line_to(x, y);
+        for (i, segment) in segments.iter().enumerate() {
+            let (mut cx, mut cy) = self.cell_center(&segment.pos, cell_size);
+            if i == 0 {
+                cx = head_pixel_offs.x as f64;
+                cy = head_pixel_offs.y as f64;
+            }
+            self.context.line_to(cx, cy);
         }
 
         self.context.stroke();
-
-        let (cx, cy) = self.cell_center(&segments[0].pos, cell_size);
 
         let radius = cell_size * 0.40;
 
@@ -320,8 +340,6 @@ impl Draw {
 
         self.context.begin_path();
 
-        let (x, y) = self.cell_center(&segments[0].pos, cell_size);
-
         self.context.move_to(x, y);
 
         self.context
@@ -332,9 +350,9 @@ impl Draw {
         let (side_x, side_y) = (-forward_y, forward_x);
 
         for side in [-1.0, 1.0] {
-            let ex = cx + forward_x * eye_offset * 0.5 + side_x * eye_offset * side;
+            let ex = x + forward_x * eye_offset * 0.5 + side_x * eye_offset * side;
 
-            let ey = cy + forward_y * eye_offset * 0.5 + side_y * eye_offset * side;
+            let ey = y + forward_y * eye_offset * 0.5 + side_y * eye_offset * side;
             self.context.set_fill_style_str("#111827");
             self.context.begin_path();
             self.context
@@ -392,4 +410,39 @@ impl Draw {
             .line_to(cx + cell_size * 0.08, cy - cell_size * 0.39);
         self.context.stroke();
     }
+}
+pub fn start_render_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+
+    let callback_slot: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
+
+    let callback_slot_clone = Rc::clone(&callback_slot);
+    let mut last_timestamp: Option<f64> = None;
+
+    *callback_slot.borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let dt = last_timestamp.map(|last| timestamp - last).unwrap_or(0.0);
+        // delta time in ms
+        {
+            let world = world.borrow();
+            draw.borrow_mut().draw_frame(&world, dt);
+        }
+        last_timestamp = Some(timestamp);
+
+        if let Some(window) = web_sys::window() {
+            let callback_slot = callback_slot_clone.borrow();
+
+            if let Some(callback) = callback_slot.as_ref() {
+                let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
+            }
+        }
+    }));
+
+    if let Some(callback) = callback_slot.borrow().as_ref() {
+        let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
+    }
+
+    // Keep the callback alive for as long as the animation loop runs.
+    std::mem::forget(callback_slot);
 }

@@ -69,10 +69,5 @@ controls.forEach((button) => {
 
 
 function sendDirection(direction) {
-    /*
-     * This will call your Rust/WASM input function.
-     *
-     * We'll add that function to lib.rs next.
-     */
     window.wasmBindings.input(direction);
 }

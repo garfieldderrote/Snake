@@ -1,70 +1,79 @@
+###################
+## Core Gameplay ##
+###################
+
 - Snake Killing ✅
-- Points
-- Rounds
 - Player disconnecting ✅
 - optimize Network traffic
     - send differences not entire board ✅
     - client prediction?
-    - implement the protocol
-- Graphics?
+    - implement the protocol ✅
+- Graphics? - Browser WIP
+    - Smooth interpolating
+- Better spawning
+    - Overlap check
+    - not in front of other snakes/ too close to edge?
+
+- Win Check and Victory Screen?
 
 
-Snake-Protocol:
+###################
+## More Features ##
+###################
 
-+-------------+----------+---------+
-| length: u32 | type: u8 | payload |
-+-------------+----------+---------+
-// length of type + payload
 
-Server Outgoing:
-types:
-0x00 => EntireState
-+--------------------+--------------------+----------------+-----------------+
-| amount_apples: u16 | apples: xyxyxyxyxy | board_size: xy | snakes: (below) |
-+--------------------+--------------------+----------------+-----------------+
-snake:
-+-------------------+-------------+--------------------------------+
-| length_bytes: u16 | player: u64 | segments: dir,xy,dir,xy,dir,xy | // dir: 0x00-0x03, x,y: u32
-+-------------------+-------------+--------------------------------+
+- Points -> for what?
+    - Rounds?
+    - Kills?
+    - Max Length?
+- PlayerNames + Leaderboard?
 
-0x01 => AddApple
-+-----------------------+
-| positions: xyxyxyxyxy | // where x,y: u32
-+-----------------------+
+- PowerUps?
+    - Ghost? -> Can overlap itself and others
+    - Speed? -> Double speed (kinda downgrade)
+        - Maybe as boost button
+    - Mine? -> lays mine at tail => when eaten = death
 
-0x02 => RemoveApple
-+-----------------------+
-| positions: xyxyxyxyxy | // where x,y: u32
-+-----------------------+
+- Debuffing enemy?
+    - Inputs reversed? -> needs to be communicated well
+    - 
 
-0x03 => AddSnake
-+--------------------------+
-| snake: (described above) |
-+--------------------------+
 
-0x04 => RemoveSnake
-+----------------+
-| player_id: u64 |
-+----------------+
+- Walls?
+- Portals?
 
-0x05 => SnakeMovement
-+----------------+----------------+
-| player_id: u64 | dir: 0x00-0x03 | per player
-+----------------+----------------+
+- Dynamic board size with player count
 
-0x06 => TickFinished
-// no payload for now
+###############
+# Animations  #
+###############
 
-0x07 => Pong
+- Problem -> Responsible inputs(low latency), but smooth look.
 
-ServerIncoming:
-types:
+- Timeline
+    - tick recieved => halfway before actual tile
+    - half a tick later => directly on the tile
+    - next tick => halfway behind the tile
+    - repeat
+    
+- works for straight line
+- bends could be weird -> only now snake bends on next tick
+    - snake already half on next tile then receive turn -> snapping
+    - apple also eaten the same instant if there is one.
+    
+    -> Fix: - maybe send player directions as soon as known (to reduce snapping)
+            - get the own clients input immedietly -> could cause de-sync
+                  - de-sync fix: only show animation of inputs no updating the world of of that.
 
-0x00 => InputDir
-+----------------+
-| dir: 0x00-0x03 |
-+----------------+
+## Drawing
 
-0x01 => RequestGameState
+- Head with arbitrary offset and rotation
+    - each frame move to target position (halfway behind the current tile)
+    - move in a circular-ish way
+    - arrive there exactly on the new tick -> snap if necessary
+    - Connect to body with strokes?
 
-0x07 => Ping
+- Tail same as head
+  - maybe more rigid -> path already known
+
+

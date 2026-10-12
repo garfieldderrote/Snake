@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use js_sys::Uint8Array;
 use snake_core::{Board, Deserialize, Difference, InputPacket, OutputPacket, Serialize};
@@ -7,7 +7,11 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, WebSocket, console::log_1};
 
-use crate::{draw::Draw, input::Input, world::ClientWorld};
+use crate::{
+    draw::{Draw, start_render_loop},
+    input::Input,
+    world::ClientWorld,
+};
 
 mod draw;
 mod input;
@@ -41,14 +45,11 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
     onopen.forget();
     Input::setup(websocket.clone());
 
-    let mut world = ClientWorld::new(Board::new(0, 0, 0), HashMap::new());
-    let draw = match Draw::new() {
-        Ok(draw) => draw,
-        Err(e) => {
-            log_1(&e);
-            return Err(e);
-        }
-    };
+    let world = Rc::new(RefCell::new(ClientWorld::new(
+        Board::new(0, 0, 0),
+        HashMap::new(),
+    )));
+    let draw = Rc::new(RefCell::new(Draw::new()?));
 
     /////DEBUG ///////////
     // let mut snakes = HashMap::new();
@@ -59,19 +60,27 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
     // let mut testWorld = ClientWorld::new(Board::new(25, 25, 0), snakes);
     // draw.draw_world(&mut testWorld);
     /////DEBUG ///////////
+    let world_for_messages = Rc::clone(&world);
+    let draw_for_messages = Rc::clone(&draw);
 
     let onmessage = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
         if let Ok(array_buffer) = event.data().dyn_into::<js_sys::ArrayBuffer>() {
             let bytes = js_sys::Uint8Array::new(&array_buffer).to_vec();
 
             if let Ok(packet) = OutputPacket::deserialize(&bytes) {
-                handle_received_packet(packet, &mut world, &draw);
+                handle_received_packet(
+                    packet,
+                    &mut world_for_messages.borrow_mut(),
+                    &mut draw_for_messages.borrow_mut(),
+                );
             }
         }
     });
 
     websocket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
     onmessage.forget();
+
+    start_render_loop(world, draw);
 
     Ok(())
 }
@@ -119,7 +128,7 @@ pub fn start_ping_loop() {
     closure.forget();
 }
 
-fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &Draw) {
+fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &mut Draw) {
     match packet {
         OutputPacket::State {
             board_state,
