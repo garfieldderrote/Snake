@@ -1,24 +1,38 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    f64::consts::{FRAC_PI_2, PI, TAU},
+    rc::Rc,
+};
 
-use snake_core::{Cell, Dir, IVec2, PlayerId, Segment};
+use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Segment, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
+use web_sys::{
+    CanvasRenderingContext2d, HtmlCanvasElement,
+    console::{log_0, log_1},
+};
 
 use crate::world::ClientWorld;
 
 struct HeadAnimation {
-    start_offs: IVec2,
-    pixel_offs: IVec2,
-    target_offs: IVec2,
+    start_offs: Vec2,
+    pixel_offs: Vec2,
+    target_offs: Vec2,
     rotation: f64,
+    start_rotation: f64,
     elapsed: f64,
     duration: f64,
+    temp_dir: Dir, // TODO: remove field and use 'rotation'
 }
 
 pub struct Draw {
     context: CanvasRenderingContext2d,
     size: (u32, u32),
     head_animations: HashMap<PlayerId, HeadAnimation>,
+    cell_size: f64,
+    world: ClientWorld,
+    client_id: Option<PlayerId>,
+    player_names: HashMap<PlayerId, String>,
 }
 
 pub trait DrawWorld {
@@ -79,30 +93,78 @@ impl Draw {
             context,
             size,
             head_animations: HashMap::new(),
+            cell_size: 0.0,
+            world: ClientWorld::new(Board::new(0, 0, 0), HashMap::new()),
+            client_id: None,
+            player_names: HashMap::new(),
         })
+    }
+    pub fn set_client_id(&mut self, id: PlayerId) {
+        self.client_id = Some(id);
+    }
+    pub fn get_client_id(&self) -> Option<PlayerId> {
+        self.client_id
+    }
+    pub fn set_player_names(&mut self, playernames: Vec<(PlayerId, String)>) {
+        for (player, name) in playernames {
+            self.player_names.insert(player, name);
+        }
     }
     pub fn draw_world(&mut self, world: &mut ClientWorld) {
         let cell_size = self.size.0 as f64 / world.get_width() as f64;
+        self.cell_size = cell_size;
+        self.world = world.clone();
+        log_1(&format!("player_id = {:?}", self.get_client_id()).into());
+        //TODO: use the self.cell_size everywhere
         for (player, snake) in world.snakes() {
             let halftile = match snake.segments[0].dir {
-                Dir::Up => IVec2::new(0, (cell_size / 2.0) as i32),
-                Dir::Down => IVec2::new(0, (-cell_size / 2.0) as i32),
-                Dir::Left => IVec2::new((cell_size / 2.0) as i32, 0),
-                Dir::Right => IVec2::new((-cell_size / 2.0) as i32, 0),
+                Dir::Up => Vec2::new(0.0, cell_size / 2.0),
+                Dir::Down => Vec2::new(0.0, -cell_size / 2.0),
+                Dir::Left => Vec2::new(cell_size / 2.0, 0.0),
+                Dir::Right => Vec2::new(-cell_size / 2.0, 0.0),
+            };
+            let rotation = match snake.segments[0].dir {
+                Dir::Up => -FRAC_PI_2,
+                Dir::Down => FRAC_PI_2,
+                Dir::Left => PI,
+                Dir::Right => 0.0,
             };
             let head_pixel_pos = self.cell_center(&snake.segments[0].pos, cell_size);
-            let head_pixel_pos = IVec2::new(head_pixel_pos.0 as i32, head_pixel_pos.1 as i32);
-            self.head_animations.insert(
-                *player,
-                HeadAnimation {
-                    start_offs: head_pixel_pos.add(&halftile),
-                    pixel_offs: head_pixel_pos.add(&halftile),
-                    target_offs: head_pixel_pos.add(&halftile.scale(-1)),
-                    rotation: 0.0,
-                    elapsed: 0.0,
-                    duration: 200.0, // 200ms
-                },
-            );
+            let head_pixel_pos = Vec2::new(head_pixel_pos.0, head_pixel_pos.1);
+            // self.head_animations.insert(
+            //     *player,
+            //     HeadAnimation {
+            //         start_offs: head_pixel_pos + halftile,
+            //         pixel_offs: head_pixel_pos + halftile,
+            //         target_offs: head_pixel_pos + halftile * -1.0,
+            //         rotation,
+            //         start_rotation: rotation,
+            //         elapsed: 0.0,
+            //         duration: 200.0, // 200ms
+            //         temp_dir: snake.segments[0].dir,
+            //     },
+            // );
+            self.head_animations
+                .entry(*player)
+                .and_modify(|anim| {
+                    anim.target_offs = head_pixel_pos + halftile * -1.0;
+                    anim.elapsed = 0.0;
+                    anim.rotation = rotation;
+                    anim.start_offs = head_pixel_pos + halftile;
+                    anim.pixel_offs = head_pixel_pos + halftile;
+                })
+                .or_insert_with(|| {
+                    HeadAnimation {
+                        start_offs: head_pixel_pos + halftile,
+                        pixel_offs: head_pixel_pos + halftile,
+                        target_offs: head_pixel_pos + halftile * -1.0,
+                        rotation,
+                        start_rotation: rotation,
+                        elapsed: 0.0,
+                        duration: 200.0, // 200ms
+                        temp_dir: snake.segments[0].dir,
+                    }
+                });
         }
         //self.draw_frame(world, 0.0);
     }
@@ -152,22 +214,16 @@ impl Draw {
             if segments.is_empty() {
                 continue;
             }
-            let animation = self.head_animations.get_mut(player).unwrap();
-            let pixel_offs = animation.pixel_offs;
-            animation.elapsed = (animation.elapsed + dt).min(animation.duration);
-
-            let t = (animation.elapsed / animation.duration).clamp(0.0, 1.0);
-
-            animation.pixel_offs.x = animation.start_offs.x
-                + ((animation.target_offs.x as f64 - animation.start_offs.x as f64) * t) as i32;
-
-            animation.pixel_offs.y = animation.start_offs.y
-                + ((animation.target_offs.y as f64 - animation.start_offs.y as f64) * t) as i32;
-
-            let color = get_player_skin(player);
-            self.draw_snake_outline(&segments, cell_size, pixel_offs);
-            self.draw_snake_body(&segments, color, cell_size, pixel_offs);
-            self.draw_snake_head(&segments[0], color, cell_size, pixel_offs);
+            if let Some(animation) = self.head_animations.get_mut(player) {
+                let pixel_offs = animation.pixel_offs;
+                let rotation = animation.rotation;
+                let dir = animation.temp_dir;
+                update_head_animation(animation, dt);
+                let color = get_player_skin(player);
+                self.draw_snake_outline(&segments, cell_size, pixel_offs);
+                self.draw_snake_body(&segments, color, cell_size, pixel_offs, 0.0);
+                self.draw_snake_head(&segments[0], color, cell_size, pixel_offs, dir, rotation);
+            }
         }
     }
 
@@ -176,29 +232,32 @@ impl Draw {
         segments: &[Segment],
         color: &str,
         cell_size: f64,
-        pixel_offs: IVec2,
+        pixel_offs: Vec2,
+        t: f64,
     ) {
-        // Connect the segments with a thick line.
-        //
-        // This makes corners smooth instead of looking like
-        // individual circles.
         self.context.set_stroke_style_str(color);
         self.context.set_line_width(cell_size * 0.68);
         self.context.set_line_cap("round");
         self.context.set_line_join("round");
 
+        let (taildir, tailoffs) = match segments[segments.len() - 1].dir {
+            Dir::Up => (IVec2::new(0, -1), IVec2::new(0, (cell_size / 2.0) as i32)),
+            Dir::Down => (IVec2::new(0, 1), IVec2::new(0, -(cell_size / 2.0) as i32)),
+            Dir::Left => (IVec2::new(-1, 0), IVec2::new((cell_size / 2.0) as i32, 0)),
+            Dir::Right => (IVec2::new(1, 0), IVec2::new(-(cell_size / 2.0) as i32, 0)),
+        };
+
         if segments.len() > 1 {
             self.context.begin_path();
 
-            // let (mut x, mut y) = self.cell_center(&segments[0].pos, cell_size);
-            // x += pixel_offs.x as f64;
-            // y += pixel_offs.y as f64;
+            self.context.move_to(pixel_offs.x, pixel_offs.y);
 
-            self.context
-                .move_to(pixel_offs.x as f64, pixel_offs.y as f64);
-
-            for segment in segments.iter().skip(1) {
-                let (x, y) = self.cell_center(&segment.pos, cell_size);
+            for (i, segment) in segments.iter().enumerate() {
+                let (mut x, mut y) = self.cell_center(&segment.pos, cell_size);
+                if i == segments.len() - 1 {
+                    x += taildir.x as f64 * cell_size * t + tailoffs.x as f64;
+                    y += taildir.y as f64 * cell_size * t + tailoffs.y as f64;
+                }
                 self.context.line_to(x, y);
             }
 
@@ -206,9 +265,17 @@ impl Draw {
         }
     }
 
-    fn draw_snake_head(&self, segment: &Segment, color: &str, cell_size: f64, pixel_offs: IVec2) {
-        let cx = pixel_offs.x as f64;
-        let cy = pixel_offs.y as f64;
+    fn draw_snake_head(
+        &self,
+        segment: &Segment,
+        color: &str,
+        cell_size: f64,
+        pixel_offs: Vec2,
+        dir: Dir,
+        rotation: f64,
+    ) {
+        let cx = pixel_offs.x;
+        let cy = pixel_offs.y;
 
         let radius = cell_size * 0.34;
 
@@ -218,12 +285,14 @@ impl Draw {
 
         let nose_size = cell_size * 0.6;
 
-        let (forward_x, forward_y) = match segment.dir {
+        let (forward_x, forward_y) = match dir {
             Dir::Up => (0.0, -1.0),
             Dir::Down => (0.0, 1.0),
             Dir::Left => (-1.0, 0.0),
             Dir::Right => (1.0, 0.0),
         };
+        let forward_x = rotation.cos();
+        let forward_y = rotation.sin();
         // Head
         self.context.set_stroke_style_str(color);
         self.context.set_line_width(radius * 2.0);
@@ -291,7 +360,7 @@ impl Draw {
             self.context.fill();
         }
     }
-    fn draw_snake_outline(&self, segments: &[Segment], cell_size: f64, head_pixel_offs: IVec2) {
+    fn draw_snake_outline(&self, segments: &[Segment], cell_size: f64, head_pixel_offs: Vec2) {
         if segments.len() < 2 {
             return;
         }
@@ -312,8 +381,8 @@ impl Draw {
         for (i, segment) in segments.iter().enumerate() {
             let (mut cx, mut cy) = self.cell_center(&segment.pos, cell_size);
             if i == 0 {
-                cx = head_pixel_offs.x as f64;
-                cy = head_pixel_offs.y as f64;
+                cx = head_pixel_offs.x;
+                cy = head_pixel_offs.y;
             }
             self.context.line_to(cx, cy);
         }
@@ -410,6 +479,26 @@ impl Draw {
             .line_to(cx + cell_size * 0.08, cy - cell_size * 0.39);
         self.context.stroke();
     }
+    pub fn update_snake_dir(&mut self, dir: Dir, player: Option<PlayerId>) {
+        //let animation = self.head_animations.get_mut(&player).unwrap();
+        if let Some(playerid) = player.or(self.get_client_id())
+            && let Some(snake) = self.world.snakes().get(&playerid)
+        {
+            let head_pixel_pos = self.cell_center(&snake.segments[0].pos, self.cell_size);
+            let head_pixel_pos = Vec2::new(head_pixel_pos.0, head_pixel_pos.1);
+
+            let halftile = match dir {
+                Dir::Up => Vec2::new(0.0, self.cell_size / 2.0),
+                Dir::Down => Vec2::new(0.0, -self.cell_size / 2.0),
+                Dir::Left => Vec2::new(self.cell_size / 2.0, 0.0),
+                Dir::Right => Vec2::new(-self.cell_size / 2.0, 0.0),
+            };
+            if let Some(animation) = self.head_animations.get_mut(&playerid) {
+                animation.target_offs = head_pixel_pos + halftile * -1.0;
+                animation.temp_dir = dir;
+            }
+        }
+    }
 }
 pub fn start_render_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>) {
     let Some(window) = web_sys::window() else {
@@ -445,4 +534,46 @@ pub fn start_render_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>
 
     // Keep the callback alive for as long as the animation loop runs.
     std::mem::forget(callback_slot);
+}
+
+const TURN_TIME_FRACTION: f64 = 0.5;
+const EPS: f64 = 1e-9;
+
+fn wrap_pi(a: f64) -> f64 {
+    (a + PI).rem_euclid(TAU) - PI
+}
+
+fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
+    // Vector from where the head is now to where it should be.
+    let dx = anim.target_offs.x - anim.pixel_offs.x;
+    let dy = anim.target_offs.y - anim.pixel_offs.y;
+
+    // ---- Position: constant velocity toward the *current* target ----
+    // Each frame, cover dt / remaining of the distance that's left. If the
+    // target never changes this is exactly constant speed and lands on the
+    // target when elapsed == duration. If the target does change, we just
+    // re-aim from wherever we are, so there is never a jump.
+    let remaining = (anim.duration - anim.elapsed).max(0.0);
+    anim.elapsed = (anim.elapsed + dt).min(anim.duration);
+
+    if dt >= remaining {
+        anim.pixel_offs.x = anim.target_offs.x;
+        anim.pixel_offs.y = anim.target_offs.y;
+    } else {
+        let k = dt / remaining;
+        anim.pixel_offs.x += dx * k;
+        anim.pixel_offs.y += dy * k;
+    }
+
+    // ---- Rotation: ease toward the travel direction at a fixed turn rate ----
+    if dx * dx + dy * dy > EPS {
+        let desired = dy.atan2(dx);
+        let max_step = if anim.duration > EPS {
+            (PI / 2.0) / (anim.duration * TURN_TIME_FRACTION) * dt
+        } else {
+            PI
+        };
+        let diff = wrap_pi(desired - anim.rotation);
+        anim.rotation = wrap_pi(anim.rotation + diff.clamp(-max_step, max_step));
+    }
 }

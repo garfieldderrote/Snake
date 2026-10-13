@@ -6,11 +6,29 @@ use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Snake, SnakeSystem, SnakeWor
 pub struct ClientWorld {
     board: Board,
     snakes: HashMap<PlayerId, Snake>,
+    client_id: Option<PlayerId>,
+    player_names: HashMap<PlayerId, String>,
 }
 
 impl ClientWorld {
     pub fn new(board: Board, snakes: HashMap<PlayerId, Snake>) -> Self {
-        ClientWorld { board, snakes }
+        ClientWorld {
+            board,
+            snakes,
+            client_id: None,
+            player_names: HashMap::new(),
+        }
+    }
+    pub fn set_client_id(&mut self, id: PlayerId) {
+        self.client_id = Some(id);
+    }
+    pub fn get_client_id(&self) -> Option<PlayerId> {
+        self.client_id
+    }
+    pub fn set_player_names(&mut self, playernames: Vec<(PlayerId, String)>) {
+        for (player, name) in playernames {
+            self.player_names.insert(player, name);
+        }
     }
 }
 

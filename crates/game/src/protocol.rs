@@ -9,6 +9,7 @@ use crate::{
 
 pub enum InputPacket {
     Direction { dir: Dir },
+    Handshake(String),
     Ping,
 }
 
@@ -29,6 +30,7 @@ pub enum OutputPacket {
     },
     Difference(Difference),
     TickFinished,
+    Handshake(PlayerId, Vec<(PlayerId, String)>),
     Pong,
 }
 
@@ -114,6 +116,15 @@ impl Serialize for OutputPacket {
             }
             OutputPacket::Pong => {
                 result.push(0x07);
+            }
+            OutputPacket::Handshake(playerid, playernames) => {
+                result.push(0x08);
+                result.extend_from_slice(&playerid.0.to_be_bytes());
+                for (id, name) in playernames {
+                    result.extend_from_slice(&id.0.to_be_bytes());
+                    result.extend_from_slice(&name.len().to_be_bytes());
+                    result.extend_from_slice(&name.clone().into_bytes());
+                }
             }
         };
         result
@@ -262,6 +273,20 @@ impl Deserialize for OutputPacket {
             }
             0x06 => OutputPacket::TickFinished,
             0x07 => OutputPacket::Pong,
+            0x08 => {
+                let playerid = PlayerId(r.u64_be()?);
+                let mut playernames = Vec::new();
+                while let Ok(player) = r.u64_be() {
+                    let string_length = r.u64_be()? as usize;
+                    let string_bytes = r.read(string_length)?;
+                    let name = match String::from_utf8(string_bytes.to_vec()) {
+                        Ok(string) => string,
+                        Err(_) => return Err(DecodeError::InvalidPacketType(0x08)),
+                    };
+                    playernames.push((PlayerId(player), name));
+                }
+                OutputPacket::Handshake(playerid, playernames)
+            }
             _ => {
                 return Err(DecodeError::InvalidPacketType(0x06));
             }
@@ -352,6 +377,11 @@ impl Serialize for InputPacket {
             InputPacket::Ping => {
                 result.push(0x07);
             }
+            InputPacket::Handshake(name) => {
+                result.push(0x08);
+                result.extend_from_slice(&(name.len() as u64).to_be_bytes());
+                result.extend_from_slice(&name.clone().into_bytes());
+            }
         }
         result
     }
@@ -377,6 +407,15 @@ impl Deserialize for InputPacket {
                 Ok(InputPacket::Direction { dir })
             }
             0x07 => Ok(InputPacket::Ping),
+            0x08 => {
+                let string_length = r.u64_be()? as usize;
+                let string_bytes = r.read(string_length)?;
+                let name = match String::from_utf8(string_bytes.to_vec()) {
+                    Ok(string) => string,
+                    Err(_) => return Err(DecodeError::InvalidPacketType(0x08)),
+                };
+                Ok(InputPacket::Handshake(name))
+            }
             _ => Err(DecodeError::InvalidPacketType(0x00)),
         }
     }

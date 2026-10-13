@@ -18,6 +18,7 @@ pub struct Network {
     receiver: Receiver<Packet>,
     senders: HashMap<PlayerId, Sender<Vec<u8>>>,
     buffer: HashMap<PlayerId, VecDeque<Dir>>,
+    player_names: HashMap<PlayerId, String>,
     players: Vec<PlayerId>,
 }
 
@@ -34,6 +35,10 @@ enum Packet {
         player: PlayerId,
     },
     Ping,
+    PlayerName {
+        player: PlayerId,
+        name: String,
+    },
 }
 
 impl Network {
@@ -43,6 +48,7 @@ impl Network {
             receiver: rx,
             senders: HashMap::new(),
             buffer: HashMap::new(),
+            player_names: HashMap::new(),
             players: Vec::new(),
         };
         let listener_shutdown = shutdown.clone();
@@ -114,6 +120,11 @@ impl Network {
                 Packet::Ping => {
                     //self.send_pong();
                 }
+                Packet::PlayerName { player, name } => {
+                    self.player_names.insert(player, name);
+                    self.send_handshake();
+                    println!("Send PlayerNames");
+                }
             };
         }
         (disconnected_players, connected_players)
@@ -146,6 +157,24 @@ impl Network {
         };
         for tx in senders {
             let _ = tx.try_send(data.clone());
+        }
+    }
+    pub fn send_packet_to_player(&self, packet: OutputPacket, player_id: PlayerId) {
+        let sender = self.senders.get(&player_id).unwrap();
+        let data = packet.serialize();
+        _ = sender.try_send(data.clone());
+    }
+
+    pub fn send_handshake(&self) {
+        for player in self.senders.keys() {
+            let packet = OutputPacket::Handshake(
+                *player,
+                self.player_names
+                    .iter()
+                    .map(|(p, n)| (*p, n.clone()))
+                    .collect(),
+            );
+            self.send_packet_to_player(packet, *player);
         }
     }
     pub fn add_snake(&self, snake: Snake) {
@@ -324,6 +353,19 @@ async fn process_recieved_bytes(
 
             _ = websocket.send(Message::Binary(data.into())).await.is_err();
         }
-        Err(_) => {}
+        Ok(InputPacket::Handshake(name)) => {
+            println!("Recieved Handshake");
+            if tx
+                .send(Packet::PlayerName {
+                    player: player_id,
+                    name,
+                })
+                .await
+                .is_err()
+            {}
+        }
+        Err(err) => {
+            println!("Invalid packet: {:?}", err);
+        }
     }
 }

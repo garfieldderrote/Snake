@@ -146,10 +146,11 @@ body {
  * CSS scales it down to fit the screen.
  */
 #canvas {
-    display: block;
+    display: flex;
 
     max-width: 100%;
     max-height: 100%;
+    margin: 15px;
 
     aspect-ratio: 1 / 1;
 
@@ -158,6 +159,28 @@ body {
     flex-shrink: 1;
 
     touch-action: none;
+}
+
+#screen {
+
+    display: flex;
+
+    max-width: 100%;
+    max-height: 100%;
+
+}
+
+#leaderboard {
+
+
+    top: 10px;
+    left: 10px;
+    margin: 15px;
+  display: flex;
+  max-width: 20%;
+  max-height: 100%;
+  
+  background: #ffffff;
 }
 
 

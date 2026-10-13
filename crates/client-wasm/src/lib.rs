@@ -35,21 +35,32 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
 
     start_ping_loop();
 
-    let onopen = Closure::<dyn FnMut()>::new(|| {
+    let onopen = Closure::<dyn FnMut()>::new(move || {
         web_sys::console::log_1(&"WebSocket connected!".into());
+        let packet = InputPacket::Handshake(name.clone());
+        log_1(&"Sent Handshake!".into());
+        WEBSOCKET.with(|ws| {
+            if let Some(websocket) = ws.borrow().as_ref() {
+                let array = Uint8Array::from(packet.serialize().as_slice());
+
+                if let Err(error) = websocket.send_with_array_buffer(&array.buffer()) {
+                    web_sys::console::error_1(&error);
+                }
+            }
+        });
     });
 
     websocket.set_onopen(Some(onopen.as_ref().unchecked_ref()));
 
     // Important: keep the closure alive.
     onopen.forget();
-    Input::setup(websocket.clone());
 
     let world = Rc::new(RefCell::new(ClientWorld::new(
         Board::new(0, 0, 0),
         HashMap::new(),
     )));
     let draw = Rc::new(RefCell::new(Draw::new()?));
+    Input::setup(websocket.clone(), draw.clone());
 
     /////DEBUG ///////////
     // let mut snakes = HashMap::new();
@@ -67,12 +78,17 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
         if let Ok(array_buffer) = event.data().dyn_into::<js_sys::ArrayBuffer>() {
             let bytes = js_sys::Uint8Array::new(&array_buffer).to_vec();
 
-            if let Ok(packet) = OutputPacket::deserialize(&bytes) {
-                handle_received_packet(
-                    packet,
-                    &mut world_for_messages.borrow_mut(),
-                    &mut draw_for_messages.borrow_mut(),
-                );
+            match OutputPacket::deserialize(&bytes) {
+                Ok(packet) => {
+                    handle_received_packet(
+                        packet,
+                        &mut world_for_messages.borrow_mut(),
+                        &mut draw_for_messages.borrow_mut(),
+                    );
+                }
+                Err(err) => {
+                    web_sys::console::error_1(&format!("Invalid Packet: {:?}", err).into());
+                }
             }
         }
     });
@@ -165,6 +181,12 @@ fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &
                     update_ping_display(ping);
                 }
             });
+        }
+        OutputPacket::Handshake(playerid, playernames) => {
+            log_1(&format!("Received Handshake, PlayerId = {:?}", playerid).into());
+            draw.set_client_id(playerid);
+            draw.set_player_names(playernames);
+            log_1(&format!("[lol]player_id = {:?}", draw.get_client_id()).into());
         }
     }
 }
