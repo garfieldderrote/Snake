@@ -149,7 +149,6 @@ impl GameSystem {
     }
     pub fn tick<W: GameWorld + SnakeWorld>(world: &mut W, network: &mut Network) {
         // get all connected players
-        let mut snake_movement = HashMap::new();
         let players = network.get_players().clone();
         for player in players {
             // spawn new snake
@@ -161,9 +160,9 @@ impl GameSystem {
             let input_dir = network.get_input_player(player);
             // store input dir for transmision
             if let Some(dir) = input_dir {
-                snake_movement.insert(player, dir);
+                network.snake_movement(player, dir);
             } else {
-                snake_movement.insert(player, world.snake(&player).unwrap().get_dir());
+                network.snake_movement(player, world.snake(&player).unwrap().get_dir());
             }
             SnakeSystem::tick(world, input_dir, &player);
             if !SnakeSystem::alive(world.snake(&player).unwrap()) {
@@ -171,7 +170,6 @@ impl GameSystem {
                 network.remove_snake(player);
             }
         }
-        network.snake_movements(snake_movement);
         let board = world.board().clone();
 
         BoardSystem::tick(world);

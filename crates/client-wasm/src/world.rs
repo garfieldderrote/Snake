@@ -6,8 +6,7 @@ use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Snake, SnakeSystem, SnakeWor
 pub struct ClientWorld {
     board: Board,
     snakes: HashMap<PlayerId, Snake>,
-    client_id: Option<PlayerId>,
-    player_names: HashMap<PlayerId, String>,
+    snake_movements: HashMap<PlayerId, Dir>,
 }
 
 impl ClientWorld {
@@ -15,19 +14,7 @@ impl ClientWorld {
         ClientWorld {
             board,
             snakes,
-            client_id: None,
-            player_names: HashMap::new(),
-        }
-    }
-    pub fn set_client_id(&mut self, id: PlayerId) {
-        self.client_id = Some(id);
-    }
-    pub fn get_client_id(&self) -> Option<PlayerId> {
-        self.client_id
-    }
-    pub fn set_player_names(&mut self, playernames: Vec<(PlayerId, String)>) {
-        for (player, name) in playernames {
-            self.player_names.insert(player, name);
+            snake_movements: HashMap::new(),
         }
     }
 }
@@ -51,7 +38,7 @@ impl ClientWorld {
         self.snakes.insert(snake.player, snake);
     }
     pub fn move_snake(&mut self, player: PlayerId, dir: Dir) {
-        SnakeSystem::tick(self, Some(dir), &player);
+        self.snake_movements.insert(player, dir);
     }
     pub fn remove_snake(&mut self, player: PlayerId) {
         self.snakes.remove(&player);
@@ -61,6 +48,11 @@ impl ClientWorld {
     }
     pub fn snakes(&self) -> &HashMap<PlayerId, Snake> {
         &self.snakes
+    }
+    pub fn apply_movements(&mut self) {
+        for (player, dir) in self.snake_movements.clone() {
+            SnakeSystem::tick(self, Some(dir), &player);
+        }
     }
 }
 

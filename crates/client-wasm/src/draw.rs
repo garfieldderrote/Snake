@@ -19,10 +19,11 @@ struct HeadAnimation {
     pixel_offs: Vec2,
     target_offs: Vec2,
     rotation: f64,
+    target_rotation: f64,
     start_rotation: f64,
     elapsed: f64,
     duration: f64,
-    temp_dir: Dir, // TODO: remove field and use 'rotation'
+    retargeted: bool,
 }
 
 pub struct Draw {
@@ -131,27 +132,16 @@ impl Draw {
             };
             let head_pixel_pos = self.cell_center(&snake.segments[0].pos, cell_size);
             let head_pixel_pos = Vec2::new(head_pixel_pos.0, head_pixel_pos.1);
-            // self.head_animations.insert(
-            //     *player,
-            //     HeadAnimation {
-            //         start_offs: head_pixel_pos + halftile,
-            //         pixel_offs: head_pixel_pos + halftile,
-            //         target_offs: head_pixel_pos + halftile * -1.0,
-            //         rotation,
-            //         start_rotation: rotation,
-            //         elapsed: 0.0,
-            //         duration: 200.0, // 200ms
-            //         temp_dir: snake.segments[0].dir,
-            //     },
-            // );
             self.head_animations
                 .entry(*player)
                 .and_modify(|anim| {
                     anim.target_offs = head_pixel_pos + halftile * -1.0;
                     anim.elapsed = 0.0;
                     anim.rotation = rotation;
+                    anim.target_rotation = rotation;
                     anim.start_offs = head_pixel_pos + halftile;
                     anim.pixel_offs = head_pixel_pos + halftile;
+                    anim.retargeted = false;
                 })
                 .or_insert_with(|| {
                     HeadAnimation {
@@ -160,9 +150,10 @@ impl Draw {
                         target_offs: head_pixel_pos + halftile * -1.0,
                         rotation,
                         start_rotation: rotation,
+                        target_rotation: rotation,
                         elapsed: 0.0,
                         duration: 200.0, // 200ms
-                        temp_dir: snake.segments[0].dir,
+                        retargeted: false,
                     }
                 });
         }
@@ -217,12 +208,11 @@ impl Draw {
             if let Some(animation) = self.head_animations.get_mut(player) {
                 let pixel_offs = animation.pixel_offs;
                 let rotation = animation.rotation;
-                let dir = animation.temp_dir;
                 update_head_animation(animation, dt);
                 let color = get_player_skin(player);
                 self.draw_snake_outline(&segments, cell_size, pixel_offs);
                 self.draw_snake_body(&segments, color, cell_size, pixel_offs, 0.0);
-                self.draw_snake_head(&segments[0], color, cell_size, pixel_offs, dir, rotation);
+                self.draw_snake_head(&segments[0], color, cell_size, pixel_offs, rotation);
             }
         }
     }
@@ -240,13 +230,6 @@ impl Draw {
         self.context.set_line_cap("round");
         self.context.set_line_join("round");
 
-        let (taildir, tailoffs) = match segments[segments.len() - 1].dir {
-            Dir::Up => (IVec2::new(0, -1), IVec2::new(0, (cell_size / 2.0) as i32)),
-            Dir::Down => (IVec2::new(0, 1), IVec2::new(0, -(cell_size / 2.0) as i32)),
-            Dir::Left => (IVec2::new(-1, 0), IVec2::new((cell_size / 2.0) as i32, 0)),
-            Dir::Right => (IVec2::new(1, 0), IVec2::new(-(cell_size / 2.0) as i32, 0)),
-        };
-
         if segments.len() > 1 {
             self.context.begin_path();
 
@@ -254,10 +237,7 @@ impl Draw {
 
             for (i, segment) in segments.iter().enumerate() {
                 let (mut x, mut y) = self.cell_center(&segment.pos, cell_size);
-                if i == segments.len() - 1 {
-                    x += taildir.x as f64 * cell_size * t + tailoffs.x as f64;
-                    y += taildir.y as f64 * cell_size * t + tailoffs.y as f64;
-                }
+
                 self.context.line_to(x, y);
             }
 
@@ -271,7 +251,6 @@ impl Draw {
         color: &str,
         cell_size: f64,
         pixel_offs: Vec2,
-        dir: Dir,
         rotation: f64,
     ) {
         let cx = pixel_offs.x;
@@ -285,12 +264,6 @@ impl Draw {
 
         let nose_size = cell_size * 0.6;
 
-        let (forward_x, forward_y) = match dir {
-            Dir::Up => (0.0, -1.0),
-            Dir::Down => (0.0, 1.0),
-            Dir::Left => (-1.0, 0.0),
-            Dir::Right => (1.0, 0.0),
-        };
         let forward_x = rotation.cos();
         let forward_y = rotation.sin();
         // Head
@@ -493,9 +466,20 @@ impl Draw {
                 Dir::Left => Vec2::new(self.cell_size / 2.0, 0.0),
                 Dir::Right => Vec2::new(-self.cell_size / 2.0, 0.0),
             };
+
+            let rotation = match dir {
+                Dir::Up => -FRAC_PI_2,
+                Dir::Down => FRAC_PI_2,
+                Dir::Left => PI,
+                Dir::Right => 0.0,
+            };
             if let Some(animation) = self.head_animations.get_mut(&playerid) {
+                if animation.retargeted {
+                    return;
+                }
                 animation.target_offs = head_pixel_pos + halftile * -1.0;
-                animation.temp_dir = dir;
+                animation.target_rotation = rotation;
+                animation.retargeted = true;
             }
         }
     }
@@ -568,6 +552,7 @@ fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
     // ---- Rotation: ease toward the travel direction at a fixed turn rate ----
     if dx * dx + dy * dy > EPS {
         let desired = dy.atan2(dx);
+        let desired = anim.target_rotation;
         let max_step = if anim.duration > EPS {
             (PI / 2.0) / (anim.duration * TURN_TIME_FRACTION) * dt
         } else {
@@ -575,5 +560,8 @@ fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
         };
         let diff = wrap_pi(desired - anim.rotation);
         anim.rotation = wrap_pi(anim.rotation + diff.clamp(-max_step, max_step));
+    } else {
+        let remaining_rot = wrap_pi(anim.target_rotation - anim.rotation);
+        anim.rotation = wrap_pi(anim.rotation + remaining_rot * (dt / remaining));
     }
 }

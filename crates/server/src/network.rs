@@ -102,6 +102,7 @@ impl Network {
             match input {
                 Packet::Direction { player, dir } => {
                     if self.buffer.len() <= 2 {
+                        self.snake_movement(player, dir);
                         self.buffer.entry(player).or_default();
                         self.buffer.get_mut(&player).unwrap().push_back(dir);
                     }
@@ -185,8 +186,8 @@ impl Network {
         let packet = OutputPacket::Difference(Difference::RemoveSnake(player));
         self.send_packet(packet);
     }
-    pub fn snake_movements(&self, movements: HashMap<PlayerId, Dir>) {
-        let packet = OutputPacket::Difference(Difference::SnakeMovements(movements));
+    pub fn snake_movement(&self, player: PlayerId, dir: Dir) {
+        let packet = OutputPacket::Difference(Difference::SnakeMovement(player, dir));
         self.send_packet(packet);
     }
     pub fn remove_apples(&self, removed_apples: Vec<IVec2>) {
@@ -201,10 +202,6 @@ impl Network {
         let packet = OutputPacket::TickFinished;
         self.send_packet(packet);
     }
-    // pub fn send_pong(&self) {
-    //     let packet = OutputPacket::Pong;
-    //     self.send_packet(packet);
-    // }
 }
 
 enum ConnectionEnd {

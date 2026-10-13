@@ -158,10 +158,9 @@ fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &
         OutputPacket::Difference(Difference::AddedApples(apples)) => {
             world.add_apples(apples);
         }
-        OutputPacket::Difference(Difference::SnakeMovements(movements)) => {
-            for (player, dir) in movements {
-                world.move_snake(player, dir);
-            }
+        OutputPacket::Difference(Difference::SnakeMovement(player, dir)) => {
+            draw.update_snake_dir(dir, Some(player));
+            world.move_snake(player, dir);
         }
         OutputPacket::Difference(Difference::AddSnake(snake)) => {
             world.add_snake(snake);
@@ -170,6 +169,7 @@ fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &
             world.remove_snake(player);
         }
         OutputPacket::TickFinished => {
+            world.apply_movements();
             draw.draw_world(world);
         }
         OutputPacket::Pong => {

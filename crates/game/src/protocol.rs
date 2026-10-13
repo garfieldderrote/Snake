@@ -17,7 +17,7 @@ pub enum InputPacket {
 pub enum Difference {
     RemovedApples(Vec<IVec2>),
     AddedApples(Vec<IVec2>),
-    SnakeMovements(HashMap<PlayerId, Dir>),
+    SnakeMovement(PlayerId, Dir),
     AddSnake(Snake),
     RemoveSnake(PlayerId),
 }
@@ -72,23 +72,21 @@ impl Serialize for OutputPacket {
                     result.push(0x04);
                     result.extend_from_slice(&player.0.to_be_bytes());
                 }
-                Difference::SnakeMovements(movements) => {
+                Difference::SnakeMovement(player, dir) => {
                     result.push(0x05);
-                    for (player, dir) in movements.iter() {
-                        result.extend_from_slice(&player.0.to_be_bytes());
-                        match dir {
-                            Dir::Up => {
-                                result.push(0x00);
-                            }
-                            Dir::Down => {
-                                result.push(0x01);
-                            }
-                            Dir::Left => {
-                                result.push(0x02);
-                            }
-                            Dir::Right => {
-                                result.push(0x03);
-                            }
+                    result.extend_from_slice(&player.0.to_be_bytes());
+                    match dir {
+                        Dir::Up => {
+                            result.push(0x00);
+                        }
+                        Dir::Down => {
+                            result.push(0x01);
+                        }
+                        Dir::Left => {
+                            result.push(0x02);
+                        }
+                        Dir::Right => {
+                            result.push(0x03);
                         }
                     }
                 }
@@ -256,20 +254,17 @@ impl Deserialize for OutputPacket {
                 OutputPacket::Difference(Difference::RemoveSnake(player))
             }
             0x05 => {
-                let mut snakes = HashMap::new();
-                while let Ok(player) = r.u64_be() {
-                    let player = PlayerId(player);
-                    let dir = match r.u8()? {
-                        0x00 => Dir::Up,
-                        0x01 => Dir::Down,
-                        0x02 => Dir::Left,
-                        0x03 => Dir::Right,
-                        _ => return Err(DecodeError::InvalidPacketType(0x05)),
-                    };
-                    snakes.insert(player, dir);
-                }
+                let player = r.u64_be()?;
+                let player = PlayerId(player);
+                let dir = match r.u8()? {
+                    0x00 => Dir::Up,
+                    0x01 => Dir::Down,
+                    0x02 => Dir::Left,
+                    0x03 => Dir::Right,
+                    _ => return Err(DecodeError::InvalidPacketType(0x05)),
+                };
 
-                OutputPacket::Difference(Difference::SnakeMovements(snakes))
+                OutputPacket::Difference(Difference::SnakeMovement(player, dir))
             }
             0x06 => OutputPacket::TickFinished,
             0x07 => OutputPacket::Pong,
