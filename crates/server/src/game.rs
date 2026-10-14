@@ -139,7 +139,7 @@ impl GameSystem {
             }
             drop(network_fetch_span);
 
-            if last_update.elapsed() >= Duration::from_millis(200) {
+            if last_update.elapsed() >= Duration::from_millis(150) {
                 let tick_zone = span!("Tick");
                 tick_zone.emit_color(0x00FF00);
                 GameSystem::tick(&mut game.world, network);

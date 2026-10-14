@@ -90,12 +90,10 @@ impl Network {
                 span.emit_color(0xFF0000);
                 world.add_apples(apples);
             }
-            OutputPacket::Difference(Difference::SnakeMovements(movements)) => {
-                let span = span!("SnakeMovements");
+            OutputPacket::Difference(Difference::SnakeMovement(player, dir)) => {
+                let span = span!("SnakeMovement");
                 span.emit_color(0xFF0000);
-                for (player, dir) in movements {
-                    world.move_snake(player, dir);
-                }
+                world.move_snake(player, dir);
             }
             OutputPacket::Difference(Difference::AddSnake(snake)) => {
                 let span = span!("AddSnake");
@@ -110,9 +108,11 @@ impl Network {
             OutputPacket::TickFinished => {
                 let span = span!("Draw");
                 span.emit_color(0xFF0000);
+                world.apply_movements();
                 draw_board(world);
             }
             OutputPacket::Pong => {}
+            OutputPacket::Handshake(player, playernames) => {}
         }
     }
     pub fn spawn_send_thread(
@@ -121,6 +121,8 @@ impl Network {
         shutdown: CancellationToken,
     ) {
         tokio::spawn(async move {
+            let packet = InputPacket::Handshake("PlaceHolderName".to_string());
+            _ = writer.write_all(packet.serialize().as_slice());
             while !shutdown.is_cancelled() {
                 sleep(Duration::from_millis(50)).await;
                 input.fetch();

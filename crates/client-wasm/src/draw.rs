@@ -218,7 +218,7 @@ impl Draw {
                         start_rotation: rotation,
                         target_rotation: rotation,
                         elapsed: 0.0,
-                        duration: 200.0, // 200ms
+                        duration: 150.0, // 200ms
                         retargeted: false,
                         tail_pos: tail_pixel_pos,
                         tail_target: tail_target_pos - tail_target_dir,

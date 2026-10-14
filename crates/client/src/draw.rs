@@ -13,11 +13,16 @@ pub trait DrawWorld {
 pub struct ClientWorld {
     board: Board,
     snakes: HashMap<PlayerId, Snake>,
+    snake_movements: HashMap<PlayerId, Dir>,
 }
 
 impl ClientWorld {
     pub fn new(board: Board, snakes: HashMap<PlayerId, Snake>) -> Self {
-        ClientWorld { board, snakes }
+        ClientWorld {
+            board,
+            snakes,
+            snake_movements: HashMap::new(),
+        }
     }
 }
 
@@ -40,10 +45,15 @@ impl ClientWorld {
         self.snakes.insert(snake.player, snake);
     }
     pub fn move_snake(&mut self, player: PlayerId, dir: Dir) {
-        SnakeSystem::tick(self, Some(dir), &player);
+        self.snake_movements.insert(player, dir);
     }
     pub fn remove_snake(&mut self, player: PlayerId) {
         self.snakes.remove(&player);
+    }
+    pub fn apply_movements(&mut self) {
+        for (player, dir) in self.snake_movements.clone() {
+            SnakeSystem::tick(self, Some(dir), &player);
+        }
     }
 }
 
@@ -127,17 +137,19 @@ fn get_player_skin(player: PlayerId) -> ColoredString {
 }
 
 pub fn draw_board<W: DrawWorld>(world: &mut W) {
-    _ = disable_raw_mode();
-    print!("\x1B[3J\x1B[2J\x1B[H");
+    let mut result = "".to_string();
+    result.push_str("\x1B[3J\x1B[2J\x1B[H");
     for y in (0..world.get_height()).rev() {
         for x in 0..world.get_width() {
             match world.get_cell_at(IVec2::new(x, y)) {
-                Cell::Empty => print!(". "),
-                Cell::Apple => print!("{}", "0 ".red()),
-                Cell::Snake(_, player) => print!("{}", get_player_skin(player)),
+                Cell::Empty => result.push_str(". "),
+                Cell::Apple => result.push_str(&format!("{}", "0 ".red())),
+                Cell::Snake(_, player) => result.push_str(&format!("{}", get_player_skin(player))),
             }
         }
-        println!();
+        result.push_str("\n");
     }
+    _ = disable_raw_mode();
+    print!("{}", result);
     _ = enable_raw_mode();
 }
