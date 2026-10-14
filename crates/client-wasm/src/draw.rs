@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Segment, Vec2};
+use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Segment, Snake, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
 use web_sys::{
     CanvasRenderingContext2d, HtmlCanvasElement,
@@ -18,12 +18,15 @@ struct HeadAnimation {
     start_offs: Vec2,
     pixel_offs: Vec2,
     target_offs: Vec2,
+    tail_pos: Vec2,
+    tail_target: Vec2,
     rotation: f64,
     target_rotation: f64,
     start_rotation: f64,
     elapsed: f64,
     duration: f64,
     retargeted: bool,
+    cell_size: f64,
 }
 
 pub struct Draw {
@@ -64,9 +67,57 @@ impl DrawWorld for ClientWorld {
     }
 }
 
+// fn get_player_skin<'a>(player: &PlayerId) -> &'a str {
+//     let player_skins = ["blue", "green", "yellow"];
+//     player_skins[player.0 as usize % player_skins.len()]
+// }
+#[derive(Clone, Copy)]
+struct Skin {
+    head: [u8; 3],
+    tail: [u8; 3],
+}
+
 fn get_player_skin<'a>(player: &PlayerId) -> &'a str {
-    let player_skins = ["blue", "green", "yellow"];
+    let player_skins = ["blue", "orange", "purple", "teal", "yellow", "green"];
     player_skins[player.0 as usize % player_skins.len()]
+}
+
+fn skin_colors(name: &str) -> Skin {
+    match name {
+        "blue" => Skin {
+            head: [0x46, 0x74, 0xE9],
+            tail: [0x9C, 0xB8, 0xFF],
+        },
+        "orange" => Skin {
+            head: [0xE8, 0x6A, 0x1F],
+            tail: [0xFF, 0xB0, 0x7A],
+        },
+        "purple" => Skin {
+            head: [0x7B, 0x4B, 0xE0],
+            tail: [0xC4, 0xA8, 0xFF],
+        },
+        "teal" => Skin {
+            head: [0x0F, 0x9D, 0x9A],
+            tail: [0x84, 0xE0, 0xD9],
+        },
+        "yellow" => Skin {
+            head: [0xF2, 0xA9, 0x00],
+            tail: [0xFF, 0xE0, 0x82],
+        },
+        "green" => Skin {
+            head: [0x1E, 0x8E, 0x3E],
+            tail: [0x8A, 0xDB, 0x9E],
+        },
+        _ => Skin {
+            head: [0x46, 0x74, 0xE9],
+            tail: [0x9C, 0xB8, 0xFF],
+        },
+    }
+}
+
+fn mix(a: [u8; 3], b: [u8; 3], t: f64) -> String {
+    let c = |i: usize| (a[i] as f64 + (b[i] as f64 - a[i] as f64) * t).round() as u8;
+    format!("rgb({},{},{})", c(0), c(1), c(2))
 }
 
 impl Draw {
@@ -130,8 +181,21 @@ impl Draw {
                 Dir::Left => PI,
                 Dir::Right => 0.0,
             };
+
+            let tail_target_dir = match snake.segments[snake.segments.len() - 1].dir {
+                Dir::Up => Vec2::new(0.0, cell_size),
+                Dir::Down => Vec2::new(0.0, -cell_size),
+                Dir::Left => Vec2::new(cell_size, 0.0),
+                Dir::Right => Vec2::new(-cell_size, 0.0),
+            };
+
             let head_pixel_pos = self.cell_center(&snake.segments[0].pos, cell_size);
             let head_pixel_pos = Vec2::new(head_pixel_pos.0, head_pixel_pos.1);
+            let tail_pixel_pos = self.cell_center(&snake.segments.last().unwrap().pos, cell_size);
+            let tail_pixel_pos = Vec2::new(tail_pixel_pos.0, tail_pixel_pos.1);
+            let tail_target_pos =
+                self.cell_center(&snake.segments[snake.segments.len() - 1].pos, cell_size);
+            let tail_target_pos = Vec2::new(tail_target_pos.0, tail_target_pos.1);
             self.head_animations
                 .entry(*player)
                 .and_modify(|anim| {
@@ -142,6 +206,8 @@ impl Draw {
                     anim.start_offs = head_pixel_pos + halftile;
                     anim.pixel_offs = head_pixel_pos + halftile;
                     anim.retargeted = false;
+                    anim.tail_pos = tail_pixel_pos;
+                    anim.tail_target = tail_target_pos - tail_target_dir;
                 })
                 .or_insert_with(|| {
                     HeadAnimation {
@@ -154,6 +220,9 @@ impl Draw {
                         elapsed: 0.0,
                         duration: 200.0, // 200ms
                         retargeted: false,
+                        tail_pos: tail_pixel_pos,
+                        tail_target: tail_target_pos - tail_target_dir,
+                        cell_size,
                     }
                 });
         }
@@ -208,47 +277,121 @@ impl Draw {
             if let Some(animation) = self.head_animations.get_mut(player) {
                 let pixel_offs = animation.pixel_offs;
                 let rotation = animation.rotation;
-                update_head_animation(animation, dt);
-                let color = get_player_skin(player);
-                self.draw_snake_outline(&segments, cell_size, pixel_offs);
-                self.draw_snake_body(&segments, color, cell_size, pixel_offs, 0.0);
+                let tail_pos = animation.tail_pos;
+                update_head_animation(animation, snake, dt);
+                let color = skin_colors(get_player_skin(player));
+                //self.draw_snake_outline(&segments, cell_size, pixel_offs);
+                self.draw_snake_body(&segments, color, cell_size, pixel_offs, tail_pos);
                 self.draw_snake_head(&segments[0], color, cell_size, pixel_offs, rotation);
             }
         }
     }
 
+    // fn draw_snake_body(
+    //     &self,
+    //     segments: &[Segment],
+    //     color: &str,
+    //     cell_size: f64,
+    //     pixel_offs: Vec2,
+    //     tail_pos: Vec2,
+    // ) {
+    //     self.context.set_stroke_style_str(color);
+    //     self.context.set_line_width(cell_size * 0.68);
+    //     self.context.set_line_cap("round");
+    //     self.context.set_line_join("round");
+    //
+    //     if segments.len() > 1 {
+    //         self.context.begin_path();
+    //
+    //         self.context.move_to(pixel_offs.x, pixel_offs.y);
+    //
+    //         for (i, segment) in segments.iter().enumerate() {
+    //             let (x, y) = if i == segments.len() - 1 {
+    //                 (tail_pos.x, tail_pos.y)
+    //             } else {
+    //                 self.cell_center(&segment.pos, cell_size)
+    //             };
+    //
+    //             self.context.line_to(x, y);
+    //         }
+    //
+    //         self.context.stroke();
+    //     }
+    // }
+
     fn draw_snake_body(
         &self,
         segments: &[Segment],
-        color: &str,
+        skin: Skin, // was: color: &str
         cell_size: f64,
         pixel_offs: Vec2,
-        t: f64,
+        tail_pos: Vec2,
     ) {
-        self.context.set_stroke_style_str(color);
-        self.context.set_line_width(cell_size * 0.68);
-        self.context.set_line_cap("round");
-        self.context.set_line_join("round");
+        if segments.len() < 2 {
+            return;
+        }
 
-        if segments.len() > 1 {
-            self.context.begin_path();
+        // 1. Same path as before, head first.
+        let mut pts: Vec<(f64, f64)> = Vec::with_capacity(segments.len() + 1);
+        pts.push((pixel_offs.x, pixel_offs.y));
+        for (i, segment) in segments.iter().enumerate() {
+            pts.push(if i == segments.len() - 1 {
+                (tail_pos.x, tail_pos.y)
+            } else {
+                self.cell_center(&segment.pos, cell_size)
+            });
+        }
 
-            self.context.move_to(pixel_offs.x, pixel_offs.y);
+        let total: f64 = pts
+            .windows(2)
+            .map(|w| (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1))
+            .sum();
+        if total < 1e-6 {
+            return;
+        }
 
-            for (i, segment) in segments.iter().enumerate() {
-                let (mut x, mut y) = self.cell_center(&segment.pos, cell_size);
+        let head_r = cell_size * 0.34; // same thickness as your old 0.68 line width
+        let tail_r = head_r * 0.70; // how thin the tail gets
+        let step = (cell_size / 12.0).max(1.0); // distance between stamps
+        //
+        const MIN_FADE_CELLS: f64 = 12.0;
+        let fade_len = (segments.len() as f64).max(MIN_FADE_CELLS) * cell_size;
 
-                self.context.line_to(x, y);
+        // 2. Sample points along the path: (x, y, t) with t = 0 at head, 1 at tail.
+        let mut stamps: Vec<(f64, f64, f64)> = Vec::new();
+        let mut walked = 0.0;
+        for w in pts.windows(2) {
+            let (x0, y0) = w[0];
+            let (x1, y1) = w[1];
+            let len = (x1 - x0).hypot(y1 - y0);
+            let n = (len / step).ceil().max(1.0) as usize;
+            for k in 0..n {
+                let f = k as f64 / n as f64;
+                stamps.push((
+                    x0 + (x1 - x0) * f,
+                    y0 + (y1 - y0) * f,
+                    ((walked + len * f) / fade_len).min(1.0),
+                ));
             }
+            walked += len;
+        }
+        let &(lx, ly) = pts.last().unwrap();
+        stamps.push((lx, ly, (walked / fade_len).min(1.0)));
 
-            self.context.stroke();
+        // 3. Draw tail -> head so the thick end overlaps the thin end.
+        for &(x, y, t) in stamps.iter().rev() {
+            let r = head_r + (tail_r - head_r) * t;
+            self.context
+                .set_fill_style_str(&mix(skin.head, skin.tail, t));
+            self.context.begin_path();
+            let _ = self.context.arc(x, y, r, 0.0, std::f64::consts::TAU);
+            self.context.fill();
         }
     }
-
     fn draw_snake_head(
         &self,
         segment: &Segment,
-        color: &str,
+        skin: Skin,
         cell_size: f64,
         pixel_offs: Vec2,
         rotation: f64,
@@ -267,7 +410,8 @@ impl Draw {
         let forward_x = rotation.cos();
         let forward_y = rotation.sin();
         // Head
-        self.context.set_stroke_style_str(color);
+        self.context
+            .set_stroke_style_str(&mix(skin.head, skin.head, 0.0));
         self.context.set_line_width(radius * 2.0);
         self.context.set_line_cap("round");
         self.context.set_line_join("round");
@@ -288,7 +432,8 @@ impl Draw {
 
             let ey = cy + forward_y * eye_offset * 0.5 + side_y * eye_offset * side;
 
-            self.context.set_fill_style_str(color);
+            self.context
+                .set_fill_style_str(&mix(skin.head, skin.head, 0.0));
             self.context.begin_path();
             self.context
                 .arc(ex, ey, eye_radius * 1.3, 0.0, std::f64::consts::TAU)
@@ -527,7 +672,7 @@ fn wrap_pi(a: f64) -> f64 {
     (a + PI).rem_euclid(TAU) - PI
 }
 
-fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
+fn update_head_animation(anim: &mut HeadAnimation, snake: &Snake, dt: f64) {
     // Vector from where the head is now to where it should be.
     let dx = anim.target_offs.x - anim.pixel_offs.x;
     let dy = anim.target_offs.y - anim.pixel_offs.y;
@@ -563,5 +708,15 @@ fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
     } else {
         let remaining_rot = wrap_pi(anim.target_rotation - anim.rotation);
         anim.rotation = wrap_pi(anim.rotation + remaining_rot * (dt / remaining));
+    }
+
+    // Tail Updating
+    let delta = anim.tail_target - anim.tail_pos;
+
+    if dt >= remaining {
+        anim.tail_pos = anim.tail_target;
+    } else {
+        let k = dt / remaining;
+        anim.tail_pos += delta * k;
     }
 }

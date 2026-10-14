@@ -9,7 +9,7 @@
     - client prediction?
     - implement the protocol ✅
 - Graphics? - Browser WIP
-    - Smooth interpolating
+    - Smooth interpolating ✅
 - Better spawning
     - Overlap check
     - not in front of other snakes/ too close to edge?
@@ -50,24 +50,24 @@
 
 - Problem -> Responsible inputs(low latency), but smooth look.
 
-- Timeline
-    - tick recieved => halfway before actual tile
-    - half a tick later => directly on the tile
-    - next tick => halfway behind the tile
-    - repeat
+- Timeline ✅
+    - tick recieved => halfway before actual tile ✅
+    - half a tick later => directly on the tile ✅
+    - next tick => halfway behind the tile ✅
+    - repeat ✅
     
-- works for straight line
+- works for straight line ✅
 - bends could be weird -> only now snake bends on next tick
     - snake already half on next tile then receive turn -> snapping
     - apple also eaten the same instant if there is one.
     
-    -> Fix: - maybe send player directions as soon as known (to reduce snapping)
-            - get the own clients input immedietly -> could cause de-sync
+    -> Fix: - maybe send player directions as soon as known (to reduce snapping) ✅
+            - get the own clients input immedietly -> could cause de-sync ✅
                   - de-sync fix: only show animation of inputs no updating the world of of that.
 
 ## Drawing
 
-- Head with arbitrary offset and rotation
+- Head with arbitrary offset and rotation ✅
     - each frame move to target position (halfway behind the current tile)
     - move in a circular-ish way
     - arrive there exactly on the new tick -> snap if necessary
