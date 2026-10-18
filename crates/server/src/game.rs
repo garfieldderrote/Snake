@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     thread::sleep,
-    time::{self, Duration, Instant},
+    time::{self, Duration, Instant, SystemTime},
 };
 
 use rand::{RngExt, rng};
@@ -117,7 +117,8 @@ impl GameSystem {
     ) {
         let mut last_update = Instant::now();
 
-        // debug
+        let mut tick_counter: u64 = 0;
+        let start = SystemTime::now();
 
         while !shutdown.is_cancelled() {
             sleep(time::Duration::from_millis(50));
@@ -142,12 +143,17 @@ impl GameSystem {
             if last_update.elapsed() >= Duration::from_millis(150) {
                 let tick_zone = span!("Tick");
                 tick_zone.emit_color(0x00FF00);
-                GameSystem::tick(&mut game.world, network);
+                GameSystem::tick(&mut game.world, network, start);
+                tick_counter += 1;
                 last_update = Instant::now();
             }
         }
     }
-    pub fn tick<W: GameWorld + SnakeWorld>(world: &mut W, network: &mut Network) {
+    pub fn tick<W: GameWorld + SnakeWorld>(
+        world: &mut W,
+        network: &mut Network,
+        start: SystemTime,
+    ) {
         // get all connected players
         let players = network.get_players().clone();
         for player in players {
@@ -193,7 +199,7 @@ impl GameSystem {
         if !added_apples.is_empty() {
             network.add_apples(added_apples);
         }
-        network.send_finished();
+        network.send_finished(start.elapsed().unwrap().as_millis() as u64);
 
         // sending the current board state
     }

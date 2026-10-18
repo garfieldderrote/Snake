@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, time::SystemTime};
 
 use js_sys::Uint8Array;
 use snake_core::{Board, Deserialize, Difference, InputPacket, OutputPacket, Serialize};
@@ -10,11 +10,13 @@ use web_sys::{MessageEvent, WebSocket, console::log_1};
 use crate::{
     draw::{Draw, start_render_loop},
     input::Input,
+    tick::TickBuffer,
     world::ClientWorld,
 };
 
 mod draw;
 mod input;
+mod tick;
 mod world;
 thread_local! {
     static WEBSOCKET: RefCell<Option<WebSocket>> = const { RefCell::new(None) };
@@ -61,6 +63,7 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
     )));
     let draw = Rc::new(RefCell::new(Draw::new()?));
     Input::setup(websocket.clone(), draw.clone());
+    let tickbuffer = Rc::new(RefCell::new(TickBuffer::new(150.0, 20.0)));
 
     /////DEBUG ///////////
     // let mut snakes = HashMap::new();
@@ -73,18 +76,49 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
     /////DEBUG ///////////
     let world_for_messages = Rc::clone(&world);
     let draw_for_messages = Rc::clone(&draw);
-
+    let tickbuffer_for_messages = Rc::clone(&tickbuffer);
+    let mut last_tick_time = 0.0;
+    let mut pending: Vec<OutputPacket> = Vec::new();
+    // DEBUG:
+    let mut prev_sent = 0;
+    let mut prev_arrival = 0.0;
+    let mut first_ts = 0.0;
+    //
     let onmessage = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
         if let Ok(array_buffer) = event.data().dyn_into::<js_sys::ArrayBuffer>() {
             let bytes = js_sys::Uint8Array::new(&array_buffer).to_vec();
 
+            let arrival = {
+                let ts = event.time_stamp(); // same clock as performance.now() in current Chrome/Firefox
+                if ts > 0.0 { ts } else { now_ms() }
+            };
+            let queued = now_ms() - arrival;
+            log_1(&format!("handler ran {queued:.0} ms late").into());
+
             match OutputPacket::deserialize(&bytes) {
                 Ok(packet) => {
-                    handle_received_packet(
-                        packet,
-                        &mut world_for_messages.borrow_mut(),
-                        &mut draw_for_messages.borrow_mut(),
-                    );
+                    let end_of_tick = matches!(packet, OutputPacket::TickFinished(_));
+                    let now = now_ms();
+                    if pending.is_empty() {
+                        first_ts = now;
+                    }
+                    pending.push(packet.clone());
+                    let OutputPacket::TickFinished(sent_time) = packet else {
+                        return;
+                    };
+                    if end_of_tick {
+                        let batch = std::mem::take(&mut pending);
+                        let info =
+                            tickbuffer_for_messages
+                                .borrow_mut()
+                                .push(batch, now, sent_time as f64);
+                        log_1(&format!(
+    "sent_gap={:6.1} arr_gap={:6.1} jitter={:6.1} slack={:6.1} spread={:5.1} queued={:4.1}",
+    sent_time - prev_sent, now - prev_arrival, info.jitter, info.slack, now - first_ts, queued
+).into());
+                        prev_sent = sent_time;
+                        prev_arrival = now;
+                    }
                 }
                 Err(err) => {
                     web_sys::console::error_1(&format!("Invalid Packet: {:?}", err).into());
@@ -96,7 +130,7 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
     websocket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
     onmessage.forget();
 
-    start_render_loop(world, draw);
+    start_render_loop(world, draw, tickbuffer);
 
     Ok(())
 }
@@ -131,7 +165,7 @@ pub fn start_ping_loop() {
 
     match window.set_interval_with_callback_and_timeout_and_arguments_0(
         closure.as_ref().unchecked_ref(),
-        1000,
+        30,
     ) {
         Ok(_) => {
             web_sys::console::log_1(&"Ping interval started".into());
@@ -144,7 +178,7 @@ pub fn start_ping_loop() {
     closure.forget();
 }
 
-fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &mut Draw) {
+pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &mut Draw) {
     match packet {
         OutputPacket::State {
             board_state,
@@ -168,7 +202,7 @@ fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, draw: &
         OutputPacket::Difference(Difference::RemoveSnake(player)) => {
             world.remove_snake(player);
         }
-        OutputPacket::TickFinished => {
+        OutputPacket::TickFinished(number) => {
             world.apply_movements();
             draw.draw_world(world);
         }
@@ -221,4 +255,10 @@ fn update_ping_display(ping: f64) {
         .unwrap()
         .style()
         .set_property("color", color);
+}
+pub fn now_ms() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.performance())
+        .map(|p| p.now())
+        .unwrap_or(0.0)
 }

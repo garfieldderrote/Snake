@@ -9,8 +9,8 @@
 
     
 <script type="module">
-import init, * as bindings from '/snake-client-wasm-8d22db86a0d12b58.js';
-const wasm = await init({ module_or_path: '/snake-client-wasm-8d22db86a0d12b58_bg.wasm' });
+import init, * as bindings from '/snake-client-wasm-932c7a7e6e92aea0.js';
+const wasm = await init({ module_or_path: '/snake-client-wasm-932c7a7e6e92aea0_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -20,7 +20,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
     <link rel="stylesheet" href="/style-337015bd5345c051.css" integrity="sha384-LQEbTgV0stQabek9ilgwrEdQqJ011aBlBqo8HkndquO335ZnHYq/XNiopQ+e88zZ"/>
-<link rel="modulepreload" href="/snake-client-wasm-8d22db86a0d12b58.js" crossorigin="anonymous" integrity="sha384-ky1GbMtmo3PstpVtocVb9n3ovUBanXyR2ZWlkLwu08E1DbBQ/S73L5d0OUePHnNZ"><link rel="preload" href="/snake-client-wasm-8d22db86a0d12b58_bg.wasm" crossorigin="anonymous" integrity="sha384-WTTOriwqdnzZW1KQwrr55IcJ6pkn9lJiDQXshBylK3jwAc9ZbboXal5kT5YFPiH3" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/snake-client-wasm-932c7a7e6e92aea0.js" crossorigin="anonymous" integrity="sha384-QrIiLGsS0pZuZRH7Agh7pqZiAHlutsrkTk4DHl7CKtOErQ+2t8aTAZibpkYCwXDs"><link rel="preload" href="/snake-client-wasm-932c7a7e6e92aea0_bg.wasm" crossorigin="anonymous" integrity="sha384-6SuFJ1GjiekCPwykIy3avFuoA1Oqw5sX11D1/FCnQawvUDRuetcyWeXEoyaogCOy" as="fetch" type="application/wasm"></head>
 
 <body>
 
@@ -55,7 +55,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 <div id="game">
   <div id="ping">-- ms</div>
       <div id="screen">
-          <canvas id="canvas" width="800" height="800"></canvas>
+          <canvas id="canvas" width="1600" height="1600"></canvas>
       </div>
 
     <div id="controls">

@@ -29,7 +29,7 @@ pub enum OutputPacket {
         snakes: HashMap<PlayerId, Snake>,
     },
     Difference(Difference),
-    TickFinished,
+    TickFinished(u64),
     Handshake(PlayerId, Vec<(PlayerId, String)>),
     Pong,
 }
@@ -109,8 +109,9 @@ impl Serialize for OutputPacket {
                     result.extend_from_slice(snake.iter().as_slice());
                 }
             }
-            OutputPacket::TickFinished => {
+            OutputPacket::TickFinished(number) => {
                 result.push(0x06);
+                result.extend_from_slice(&number.to_be_bytes());
             }
             OutputPacket::Pong => {
                 result.push(0x07);
@@ -266,7 +267,10 @@ impl Deserialize for OutputPacket {
 
                 OutputPacket::Difference(Difference::SnakeMovement(player, dir))
             }
-            0x06 => OutputPacket::TickFinished,
+            0x06 => {
+                let number = r.u64_be()?;
+                OutputPacket::TickFinished(number)
+            }
             0x07 => OutputPacket::Pong,
             0x08 => {
                 let playerid = PlayerId(r.u64_be()?);

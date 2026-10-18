@@ -105,7 +105,7 @@ impl Network {
                 span.emit_color(0xFF0000);
                 world.remove_snake(player);
             }
-            OutputPacket::TickFinished => {
+            OutputPacket::TickFinished(_) => {
                 let span = span!("Draw");
                 span.emit_color(0xFF0000);
                 world.apply_movements();

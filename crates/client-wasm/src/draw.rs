@@ -3,16 +3,17 @@ use std::{
     collections::HashMap,
     f64::consts::{FRAC_PI_2, PI, TAU},
     rc::Rc,
+    time::SystemTime,
 };
 
-use snake_core::{Board, Cell, Dir, IVec2, PlayerId, Segment, Snake, Vec2};
+use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Segment, Snake, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
 use web_sys::{
     CanvasRenderingContext2d, HtmlCanvasElement,
     console::{log_0, log_1},
 };
 
-use crate::world::ClientWorld;
+use crate::{handle_received_packet, now_ms, tick::TickBuffer, world::ClientWorld};
 
 struct HeadAnimation {
     start_offs: Vec2,
@@ -166,7 +167,6 @@ impl Draw {
         let cell_size = self.size.0 as f64 / world.get_width() as f64;
         self.cell_size = cell_size;
         self.world = world.clone();
-        log_1(&format!("player_id = {:?}", self.get_client_id()).into());
         //TODO: use the self.cell_size everywhere
         for (player, snake) in world.snakes() {
             let halftile = match snake.segments[0].dir {
@@ -275,10 +275,10 @@ impl Draw {
                 continue;
             }
             if let Some(animation) = self.head_animations.get_mut(player) {
+                update_head_animation(animation, snake, dt);
                 let pixel_offs = animation.pixel_offs;
                 let rotation = animation.rotation;
                 let tail_pos = animation.tail_pos;
-                update_head_animation(animation, snake, dt);
                 let color = skin_colors(get_player_skin(player));
                 //self.draw_snake_outline(&segments, cell_size, pixel_offs);
                 self.draw_snake_body(&segments, color, cell_size, pixel_offs, tail_pos);
@@ -629,7 +629,11 @@ impl Draw {
         }
     }
 }
-pub fn start_render_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>) {
+pub fn start_render_loop(
+    world: Rc<RefCell<ClientWorld>>,
+    draw: Rc<RefCell<Draw>>,
+    tickbuffer: Rc<RefCell<TickBuffer<Vec<OutputPacket>>>>,
+) {
     let Some(window) = web_sys::window() else {
         return;
     };
@@ -642,6 +646,15 @@ pub fn start_render_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>
     *callback_slot.borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let dt = last_timestamp.map(|last| timestamp - last).unwrap_or(0.0);
         // delta time in ms
+        // 1. Play every tick that is due (usually none, sometimes one, rarely more).
+        loop {
+            // The borrow ends at the semicolon, before we touch world/draw.
+            let due = tickbuffer.borrow_mut().pop_due(now_ms());
+            let Some((play_at, packets)) = due else { break };
+            for packet in packets {
+                handle_received_packet(packet, &mut world.borrow_mut(), &mut draw.borrow_mut());
+            }
+        }
         {
             let world = world.borrow();
             draw.borrow_mut().draw_frame(&world, dt);
@@ -694,20 +707,15 @@ fn update_head_animation(anim: &mut HeadAnimation, snake: &Snake, dt: f64) {
         anim.pixel_offs.y += dy * k;
     }
 
-    // ---- Rotation: ease toward the travel direction at a fixed turn rate ----
-    if dx * dx + dy * dy > EPS {
-        let desired = dy.atan2(dx);
-        let desired = anim.target_rotation;
-        let max_step = if anim.duration > EPS {
-            (PI / 2.0) / (anim.duration * TURN_TIME_FRACTION) * dt
-        } else {
-            PI
-        };
-        let diff = wrap_pi(desired - anim.rotation);
-        anim.rotation = wrap_pi(anim.rotation + diff.clamp(-max_step, max_step));
+    if remaining <= EPS || dt >= remaining {
+        // End of tick, or already arrived: face the final direction exactly.
+        anim.rotation = anim.target_rotation;
     } else {
-        let remaining_rot = wrap_pi(anim.target_rotation - anim.rotation);
-        anim.rotation = wrap_pi(anim.rotation + remaining_rot * (dt / remaining));
+        let diff = wrap_pi(anim.target_rotation - anim.rotation);
+        let base_rate = FRAC_PI_2 / (anim.duration * TURN_TIME_FRACTION);
+        let needed_rate = diff.abs() / remaining; // always finish by tick end
+        let step = base_rate.max(needed_rate) * dt;
+        anim.rotation = wrap_pi(anim.rotation + diff.clamp(-step, step));
     }
 
     // Tail Updating

@@ -67,6 +67,7 @@ impl Network {
                         break;
                     }
                 };
+                _ = socket.set_nodelay(true);
                 println!("New Connection! from {} (websocket: {})", addr, websocket);
 
                 let player_id = PlayerId(next_player_id);
@@ -198,8 +199,8 @@ impl Network {
         let packet = OutputPacket::Difference(Difference::AddedApples(added_apples));
         self.send_packet(packet);
     }
-    pub fn send_finished(&self) {
-        let packet = OutputPacket::TickFinished;
+    pub fn send_finished(&self, tick_counter: u64) {
+        let packet = OutputPacket::TickFinished(tick_counter);
         self.send_packet(packet);
     }
 }
