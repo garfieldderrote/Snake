@@ -9,8 +9,8 @@
 
     
 <script type="module">
-import init, * as bindings from '/snake-client-wasm-caed1ac9523a4b6e.js';
-const wasm = await init({ module_or_path: '/snake-client-wasm-caed1ac9523a4b6e_bg.wasm' });
+import init, * as bindings from '/snake-client-wasm-83c0e82091ee6a58.js';
+const wasm = await init({ module_or_path: '/snake-client-wasm-83c0e82091ee6a58_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -19,8 +19,8 @@ window.wasmBindings = bindings;
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
-    <link rel="stylesheet" href="/style-337015bd5345c051.css" integrity="sha384-LQEbTgV0stQabek9ilgwrEdQqJ011aBlBqo8HkndquO335ZnHYq/XNiopQ+e88zZ"/>
-<link rel="modulepreload" href="/snake-client-wasm-caed1ac9523a4b6e.js" crossorigin="anonymous" integrity="sha384-nMxIIe9/L2p/6oQMslO4XzlxSI+aohcigcfw32l9g5iCOuDmXxwlGyHdZZ7GvMIe"><link rel="preload" href="/snake-client-wasm-caed1ac9523a4b6e_bg.wasm" crossorigin="anonymous" integrity="sha384-Z+lSJtBR55QCmeqFPYFKhQEm2AICkQQ4ySwpT9C/HI9g58D4i4IHwRti9eP9QeSH" as="fetch" type="application/wasm"></head>
+    <link rel="stylesheet" href="/style-96b2822977e97240.css" integrity="sha384-RNRyaX/XVk+HM6CHTo12jmHZseJ6eh9+DjSZVnwWwdI69tOF/tejh6qUP3H1FZcd"/>
+<link rel="modulepreload" href="/snake-client-wasm-83c0e82091ee6a58.js" crossorigin="anonymous" integrity="sha384-pmlWbA3fIoASr9fMwDyVDQa+gVWrWVR+VjwD3dG2pYWua7fRcHPiU9wP+CfsyPjY"><link rel="preload" href="/snake-client-wasm-83c0e82091ee6a58_bg.wasm" crossorigin="anonymous" integrity="sha384-3UCabxk9wlc/XNaWZvXMrHm67Lwl1s7PpKSOzWJogtiXUQcBBPa0LWmWVtV49iUS" as="fetch" type="application/wasm"></head>
 
 <body>
 
@@ -53,11 +53,20 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 </div>
 
 <div id="game">
-  <div id="ping">-- ms</div>
-      <div id="screen">
-          <canvas id="canvas" width="1600" height="1600"></canvas>
-      </div>
+    <div id="hud">
+        <div id="ping">-- ms</div>
+        <button id="players-toggle" type="button" tabindex="-1"
+                aria-label="Toggle player list">👥 <span id="players-count"></span></button>
+    </div>
 
+    <div id="play-area">
+        <div id="screen">
+            <canvas id="canvas" width="1600" height="1600"></canvas>
+        </div>
+        <aside id="players">
+            <canvas id="players-canvas"></canvas>
+        </aside>
+    </div>
     <div id="controls">
         <button class="control-button" data-dir="up">▲</button>
 

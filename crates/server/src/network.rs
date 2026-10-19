@@ -123,12 +123,13 @@ impl Network {
                     self.senders.remove(&player);
                     self.buffer.remove(&player);
                     self.players.retain(|p| p != &player);
+                    self.player_names.remove(&player);
+                    self.send_handshake();
                     disconnected_players.push(player);
                 }
                 Packet::PlayerName { player, name } => {
                     self.player_names.insert(player, name);
                     self.send_handshake();
-                    println!("Send PlayerNames");
                 }
             };
         }

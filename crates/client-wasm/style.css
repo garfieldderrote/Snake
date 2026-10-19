@@ -106,82 +106,83 @@ body {
 /* =========================
    Game
    ========================= */
-
 #game {
-    display: none;
+    display: none;              /* your JS switches this to flex */
 
     width: 100%;
     height: 100%;
+    height: 100dvh;             /* phones: excludes the browser bars */
 
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-
     overflow: hidden;
 }
-#ping {
-    position: absolute;
-    top: 10px;
-    left: 10px;
 
-    padding: 5px 9px;
-
-    border-radius: 6px;
-
-    background: rgba(17, 24, 39, 0.75);
-
-    color: #4ade80;
-
-    font-family: monospace;
-    font-size: 14px;
-
-    pointer-events: none;
-
-    z-index: 10;
+#hud {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
 }
 
-/*
- * The actual canvas remains 800x800 internally.
- *
- * CSS scales it down to fit the screen.
- */
-#canvas {
+#ping {
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: rgba(17, 24, 39, 0.75);
+    color: #4ade80;
+    font-family: monospace;
+    font-size: 14px;
+    pointer-events: none;
+}
+
+#players-toggle {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 16px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#play-area {
+    flex: 1 1 0;                /* take all height not used by hud/controls */
+    min-height: 0;              /* allow shrinking below content size */
     display: flex;
-
-    max-width: 100%;
-    max-height: 100%;
-    margin: 15px;
-
-    aspect-ratio: 1 / 1;
-
-    background: #111827;
-
-    flex-shrink: 1;
-
-    touch-action: none;
+    gap: 12px;
+    padding: 0 12px 12px;
 }
 
 #screen {
+    flex: 1 1 0;                /* take all width the list leaves over */
+    min-width: 0;
+    container-type: size;       /* the canvas is sized from this box */
 
     display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-    max-width: 100%;
+#canvas {
+    width: 100cqmin;            /* largest square that fits in #screen */
+    height: 100cqmin;
+    flex: none;
+    background: #111827;
+    touch-action: none;
+}
+
+#players {
+    flex: 0 0 auto;
+    align-self: flex-start;
     max-height: 100%;
-
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 8px;
 }
-
-#leaderboard {
-
-
-    top: 10px;
-    left: 10px;
-    margin: 15px;
-  display: flex;
-  max-width: 20%;
-  max-height: 100%;
-  
-  background: #ffffff;
-}
+#players canvas { display: block; }
+#players.hidden { display: none; }
 
 
 /* =========================

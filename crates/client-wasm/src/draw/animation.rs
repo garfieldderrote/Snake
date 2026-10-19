@@ -15,6 +15,24 @@ pub struct HeadAnimation {
     pub retargeted: bool,
 }
 
+impl HeadAnimation {
+    // Returns all default with pixel_offs set to pos
+    pub fn default(pos: Vec2) -> Self {
+        HeadAnimation {
+            start_offs: Vec2::new(0.0, 0.0),
+            pixel_offs: pos,
+            target_offs: Vec2::new(0.0, 0.0),
+            tail_pos: Vec2::new(0.0, 0.0),
+            tail_target: Vec2::new(0.0, 0.0),
+            rotation: 0.0,
+            target_rotation: 0.0,
+            elapsed: 0.0,
+            duration: 0.0,
+            retargeted: false,
+        }
+    }
+}
+
 const TURN_TIME_FRACTION: f64 = 0.5;
 const EPS: f64 = 1e-9;
 

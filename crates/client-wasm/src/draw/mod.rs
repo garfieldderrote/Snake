@@ -7,13 +7,16 @@ use std::{
 
 mod animation;
 mod draw_snake;
+mod player_list;
 
 use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use crate::{
-    draw::draw_snake::DrawSnake, handle_received_packet, now_ms, tick::TickBuffer,
+    draw::{draw_snake::DrawSnake, player_list::PlayerListView},
+    handle_received_packet, now_ms,
+    tick::TickBuffer,
     world::ClientWorld,
 };
 
@@ -25,6 +28,7 @@ pub struct Draw {
     client_id: Option<PlayerId>,
     player_names: HashMap<PlayerId, String>,
     snake_drawer: DrawSnake,
+    player_list_drawer: PlayerListView,
 }
 
 pub trait DrawWorld {
@@ -83,6 +87,7 @@ impl Draw {
         let size = (canvas.width(), canvas.height());
         Ok(Draw {
             snake_drawer: DrawSnake::new(context.clone(), size, 0.0),
+            player_list_drawer: PlayerListView::new()?,
             context,
             size,
             cell_size: 0.0,
@@ -98,9 +103,11 @@ impl Draw {
         self.client_id
     }
     pub fn set_player_names(&mut self, playernames: Vec<(PlayerId, String)>) {
+        let mut player_names = HashMap::new();
         for (player, name) in playernames {
-            self.player_names.insert(player, name);
+            player_names.insert(player, name);
         }
+        self.player_names = player_names;
     }
     pub fn draw_world(&mut self, world: &mut ClientWorld) {
         let cell_size = self.size.0 as f64 / world.get_width() as f64;
@@ -111,12 +118,11 @@ impl Draw {
         for (player, snake) in world.snakes() {
             self.snake_drawer.reset_tick(player, snake);
         }
-        //self.draw_frame(world, 0.0);
+        let _ = self.player_list_drawer.draw(&self.player_names);
     }
     pub fn draw_frame(&mut self, world: &ClientWorld, dt: f64) {
         let width = world.get_width();
         let height = world.get_height();
-
         // Background
         self.context.set_fill_style_str("#18202b");
         self.context

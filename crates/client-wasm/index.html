@@ -42,11 +42,20 @@
 </div>
 
 <div id="game">
-  <div id="ping">-- ms</div>
-      <div id="screen">
-          <canvas id="canvas" width="1600" height="1600"></canvas>
-      </div>
+    <div id="hud">
+        <div id="ping">-- ms</div>
+        <button id="players-toggle" type="button" tabindex="-1"
+                aria-label="Toggle player list">👥 <span id="players-count"></span></button>
+    </div>
 
+    <div id="play-area">
+        <div id="screen">
+            <canvas id="canvas" width="1600" height="1600"></canvas>
+        </div>
+        <aside id="players">
+            <canvas id="players-canvas"></canvas>
+        </aside>
+    </div>
     <div id="controls">
         <button class="control-button" data-dir="up">▲</button>
 

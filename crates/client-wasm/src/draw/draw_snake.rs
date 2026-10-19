@@ -113,7 +113,7 @@ impl DrawSnake {
         }
     }
 
-    fn draw_snake_head(&self, skin: Skin, anim: &HeadAnimation) {
+    pub fn draw_snake_head(&self, skin: Skin, anim: &HeadAnimation) {
         let cx = anim.pixel_offs.x;
         let cy = anim.pixel_offs.y;
 
@@ -261,12 +261,12 @@ impl DrawSnake {
     }
 }
 
-fn get_player_skin<'a>(player: &PlayerId) -> &'a str {
+pub fn get_player_skin<'a>(player: &PlayerId) -> &'a str {
     let player_skins = ["blue", "orange", "purple", "teal", "yellow", "green"];
     player_skins[player.0 as usize % player_skins.len()]
 }
 
-fn skin_colors(name: &str) -> Skin {
+pub fn skin_colors(name: &str) -> Skin {
     match name {
         "blue" => Skin {
             head: [0x46, 0x74, 0xE9],
