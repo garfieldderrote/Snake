@@ -9,7 +9,7 @@ use snake_core::{
     Board, BoardSystem, Cell, Dir, GameWorld, IVec2, PlayerId, Snake, SnakeSystem, SnakeWorld,
 };
 use tokio_util::sync::CancellationToken;
-use tracy_client::span;
+//use tracy_client::span;
 
 use crate::network::Network;
 
@@ -121,13 +121,13 @@ impl GameSystem {
         let start = SystemTime::now();
 
         while !shutdown.is_cancelled() {
-            sleep(time::Duration::from_millis(50));
+            sleep(time::Duration::from_millis(20));
 
             // fetch the network to store input in buffer
             // easiest way to get disconnected_players from network
-            let network_fetch_span = span!("NetworkFetch");
-            network_fetch_span.emit_color(0xFF0000);
-            let (disconnected_players, connected_players) = network.receive();
+            // let network_fetch_span = span!("NetworkFetch");
+            // network_fetch_span.emit_color(0xFF0000);
+            let (disconnected_players, connected_players) = network.receive(start);
             for player in disconnected_players {
                 game.world.remove_snake(&player);
                 network.remove_snake(player);
@@ -138,11 +138,11 @@ impl GameSystem {
                     game.world.get_snake_hashmap().clone(),
                 );
             }
-            drop(network_fetch_span);
+            //           drop(network_fetch_span);
 
             if last_update.elapsed() >= Duration::from_millis(150) {
-                let tick_zone = span!("Tick");
-                tick_zone.emit_color(0x00FF00);
+                // let tick_zone = span!("Tick");
+                // tick_zone.emit_color(0x00FF00);
                 GameSystem::tick(&mut game.world, network, start);
                 tick_counter += 1;
                 last_update = Instant::now();
@@ -166,9 +166,13 @@ impl GameSystem {
             let input_dir = network.get_input_player(player);
             // store input dir for transmision
             if let Some(dir) = input_dir {
-                network.snake_movement(player, dir);
+                network.snake_movement(player, dir, start.elapsed().unwrap().as_millis() as u64);
             } else {
-                network.snake_movement(player, world.snake(&player).unwrap().get_dir());
+                network.snake_movement(
+                    player,
+                    world.snake(&player).unwrap().get_dir(),
+                    start.elapsed().unwrap().as_millis() as u64,
+                );
             }
             SnakeSystem::tick(world, input_dir, &player);
             if !SnakeSystem::alive(world.snake(&player).unwrap()) {

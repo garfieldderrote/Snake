@@ -17,7 +17,7 @@ pub enum InputPacket {
 pub enum Difference {
     RemovedApples(Vec<IVec2>),
     AddedApples(Vec<IVec2>),
-    SnakeMovement(PlayerId, Dir),
+    SnakeMovement(PlayerId, Dir, u64),
     AddSnake(Snake),
     RemoveSnake(PlayerId),
 }
@@ -72,7 +72,7 @@ impl Serialize for OutputPacket {
                     result.push(0x04);
                     result.extend_from_slice(&player.0.to_be_bytes());
                 }
-                Difference::SnakeMovement(player, dir) => {
+                Difference::SnakeMovement(player, dir, timestamp) => {
                     result.push(0x05);
                     result.extend_from_slice(&player.0.to_be_bytes());
                     match dir {
@@ -89,6 +89,7 @@ impl Serialize for OutputPacket {
                             result.push(0x03);
                         }
                     }
+                    result.extend_from_slice(&timestamp.to_be_bytes());
                 }
             },
             OutputPacket::State {
@@ -264,8 +265,9 @@ impl Deserialize for OutputPacket {
                     0x03 => Dir::Right,
                     _ => return Err(DecodeError::InvalidPacketType(0x05)),
                 };
+                let timestamp = r.u64_be()?;
 
-                OutputPacket::Difference(Difference::SnakeMovement(player, dir))
+                OutputPacket::Difference(Difference::SnakeMovement(player, dir, timestamp))
             }
             0x06 => {
                 let number = r.u64_be()?;

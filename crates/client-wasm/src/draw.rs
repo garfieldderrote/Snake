@@ -3,15 +3,11 @@ use std::{
     collections::HashMap,
     f64::consts::{FRAC_PI_2, PI, TAU},
     rc::Rc,
-    time::SystemTime,
 };
 
-use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Segment, Snake, Vec2};
+use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Segment, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
-use web_sys::{
-    CanvasRenderingContext2d, HtmlCanvasElement,
-    console::{log_0, log_1},
-};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use crate::{handle_received_packet, now_ms, tick::TickBuffer, world::ClientWorld};
 
@@ -23,11 +19,9 @@ struct HeadAnimation {
     tail_target: Vec2,
     rotation: f64,
     target_rotation: f64,
-    start_rotation: f64,
     elapsed: f64,
     duration: f64,
     retargeted: bool,
-    cell_size: f64,
 }
 
 pub struct Draw {
@@ -67,11 +61,6 @@ impl DrawWorld for ClientWorld {
         Cell::Empty
     }
 }
-
-// fn get_player_skin<'a>(player: &PlayerId) -> &'a str {
-//     let player_skins = ["blue", "green", "yellow"];
-//     player_skins[player.0 as usize % player_skins.len()]
-// }
 #[derive(Clone, Copy)]
 struct Skin {
     head: [u8; 3],
@@ -215,14 +204,12 @@ impl Draw {
                         pixel_offs: head_pixel_pos + halftile,
                         target_offs: head_pixel_pos + halftile * -1.0,
                         rotation,
-                        start_rotation: rotation,
                         target_rotation: rotation,
                         elapsed: 0.0,
                         duration: 150.0, // 200ms
                         retargeted: false,
                         tail_pos: tail_pixel_pos,
                         tail_target: tail_target_pos - tail_target_dir,
-                        cell_size,
                     }
                 });
         }
@@ -275,49 +262,17 @@ impl Draw {
                 continue;
             }
             if let Some(animation) = self.head_animations.get_mut(player) {
-                update_head_animation(animation, snake, dt);
+                update_head_animation(animation, dt);
                 let pixel_offs = animation.pixel_offs;
                 let rotation = animation.rotation;
                 let tail_pos = animation.tail_pos;
                 let color = skin_colors(get_player_skin(player));
                 //self.draw_snake_outline(&segments, cell_size, pixel_offs);
                 self.draw_snake_body(&segments, color, cell_size, pixel_offs, tail_pos);
-                self.draw_snake_head(&segments[0], color, cell_size, pixel_offs, rotation);
+                self.draw_snake_head(color, cell_size, pixel_offs, rotation);
             }
         }
     }
-
-    // fn draw_snake_body(
-    //     &self,
-    //     segments: &[Segment],
-    //     color: &str,
-    //     cell_size: f64,
-    //     pixel_offs: Vec2,
-    //     tail_pos: Vec2,
-    // ) {
-    //     self.context.set_stroke_style_str(color);
-    //     self.context.set_line_width(cell_size * 0.68);
-    //     self.context.set_line_cap("round");
-    //     self.context.set_line_join("round");
-    //
-    //     if segments.len() > 1 {
-    //         self.context.begin_path();
-    //
-    //         self.context.move_to(pixel_offs.x, pixel_offs.y);
-    //
-    //         for (i, segment) in segments.iter().enumerate() {
-    //             let (x, y) = if i == segments.len() - 1 {
-    //                 (tail_pos.x, tail_pos.y)
-    //             } else {
-    //                 self.cell_center(&segment.pos, cell_size)
-    //             };
-    //
-    //             self.context.line_to(x, y);
-    //         }
-    //
-    //         self.context.stroke();
-    //     }
-    // }
 
     fn draw_snake_body(
         &self,
@@ -388,14 +343,7 @@ impl Draw {
             self.context.fill();
         }
     }
-    fn draw_snake_head(
-        &self,
-        segment: &Segment,
-        skin: Skin,
-        cell_size: f64,
-        pixel_offs: Vec2,
-        rotation: f64,
-    ) {
+    fn draw_snake_head(&self, skin: Skin, cell_size: f64, pixel_offs: Vec2, rotation: f64) {
         let cx = pixel_offs.x;
         let cy = pixel_offs.y;
 
@@ -491,8 +439,8 @@ impl Draw {
         self.context.begin_path();
 
         // Start at the head so the outline connects underneath it.
-        let x = head_pixel_offs.x as f64;
-        let y = head_pixel_offs.y as f64;
+        let x = head_pixel_offs.x;
+        let y = head_pixel_offs.y;
         self.context.move_to(x, y);
 
         // Follow the entire snake.
@@ -602,6 +550,9 @@ impl Draw {
         if let Some(playerid) = player.or(self.get_client_id())
             && let Some(snake) = self.world.snakes().get(&playerid)
         {
+            if !check_valid_input(snake.segments[0].dir, dir) {
+                return;
+            }
             let head_pixel_pos = self.cell_center(&snake.segments[0].pos, self.cell_size);
             let head_pixel_pos = Vec2::new(head_pixel_pos.0, head_pixel_pos.1);
 
@@ -650,7 +601,9 @@ pub fn start_render_loop(
         loop {
             // The borrow ends at the semicolon, before we touch world/draw.
             let due = tickbuffer.borrow_mut().pop_due(now_ms());
-            let Some((play_at, packets)) = due else { break };
+            let Some((_play_at, packets)) = due else {
+                break;
+            };
             for packet in packets {
                 handle_received_packet(packet, &mut world.borrow_mut(), &mut draw.borrow_mut());
             }
@@ -685,7 +638,7 @@ fn wrap_pi(a: f64) -> f64 {
     (a + PI).rem_euclid(TAU) - PI
 }
 
-fn update_head_animation(anim: &mut HeadAnimation, snake: &Snake, dt: f64) {
+fn update_head_animation(anim: &mut HeadAnimation, dt: f64) {
     // Vector from where the head is now to where it should be.
     let dx = anim.target_offs.x - anim.pixel_offs.x;
     let dy = anim.target_offs.y - anim.pixel_offs.y;
@@ -727,4 +680,11 @@ fn update_head_animation(anim: &mut HeadAnimation, snake: &Snake, dt: f64) {
         let k = dt / remaining;
         anim.tail_pos += delta * k;
     }
+}
+
+fn check_valid_input(dira: Dir, dirb: Dir) -> bool {
+    !((dira == Dir::Up && dirb == Dir::Down)
+        || (dira == Dir::Down && dirb == Dir::Up)
+        || (dira == Dir::Left && dirb == Dir::Right)
+        || (dira == Dir::Right && dirb == Dir::Left))
 }

@@ -1,19 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
-
 use js_sys::Uint8Array;
-use snake_core::{Dir, InputPacket, PlayerId, Serialize};
+use snake_core::{Dir, InputPacket, Serialize};
 use wasm_bindgen::{
     JsCast,
     prelude::{Closure, wasm_bindgen},
 };
 use web_sys::{KeyboardEvent, WebSocket, window};
 
-use crate::{WEBSOCKET, draw::Draw};
+use crate::WEBSOCKET;
 
 pub struct Input {}
 
 impl Input {
-    pub fn setup(websocket: WebSocket, draw: Rc<RefCell<Draw>>) {
+    pub fn setup(websocket: WebSocket) {
         let closure = Closure::<dyn FnMut(KeyboardEvent)>::new(move |event: KeyboardEvent| {
             let key = event.key();
 
@@ -24,7 +22,7 @@ impl Input {
                 "d" => Dir::Right,
                 _ => return,
             };
-            draw.borrow_mut().update_snake_dir(dir, None);
+            //draw.borrow_mut().update_snake_dir(dir, None);
             let packet = InputPacket::Direction { dir };
             let array = Uint8Array::from(packet.serialize().as_slice());
             _ = websocket.send_with_array_buffer(&array.buffer());

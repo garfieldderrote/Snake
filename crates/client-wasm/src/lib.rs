@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, time::SystemTime};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use js_sys::Uint8Array;
 use snake_core::{Board, Deserialize, Difference, InputPacket, OutputPacket, Serialize};
@@ -62,62 +62,59 @@ pub fn start(name: String, ip: String) -> Result<(), JsValue> {
         HashMap::new(),
     )));
     let draw = Rc::new(RefCell::new(Draw::new()?));
-    Input::setup(websocket.clone(), draw.clone());
-    let tickbuffer = Rc::new(RefCell::new(TickBuffer::new(150.0, 20.0)));
+    Input::setup(websocket.clone());
+    let tickbuffer = Rc::new(RefCell::new(TickBuffer::new(10.0)));
 
-    /////DEBUG ///////////
-    // let mut snakes = HashMap::new();
-    // snakes.insert(
-    //     PlayerId(0),
-    //     Snake::new(IVec2::new(10, 10), Dir::Right, 5, PlayerId(0)),
-    // );
-    // let mut testWorld = ClientWorld::new(Board::new(25, 25, 0), snakes);
-    // draw.draw_world(&mut testWorld);
-    /////DEBUG ///////////
     let world_for_messages = Rc::clone(&world);
     let draw_for_messages = Rc::clone(&draw);
     let tickbuffer_for_messages = Rc::clone(&tickbuffer);
-    let mut last_tick_time = 0.0;
     let mut pending: Vec<OutputPacket> = Vec::new();
-    // DEBUG:
-    let mut prev_sent = 0;
-    let mut prev_arrival = 0.0;
-    let mut first_ts = 0.0;
-    //
     let onmessage = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
         if let Ok(array_buffer) = event.data().dyn_into::<js_sys::ArrayBuffer>() {
             let bytes = js_sys::Uint8Array::new(&array_buffer).to_vec();
 
-            let arrival = {
-                let ts = event.time_stamp(); // same clock as performance.now() in current Chrome/Firefox
-                if ts > 0.0 { ts } else { now_ms() }
-            };
-            let queued = now_ms() - arrival;
-            log_1(&format!("handler ran {queued:.0} ms late").into());
-
             match OutputPacket::deserialize(&bytes) {
                 Ok(packet) => {
-                    let end_of_tick = matches!(packet, OutputPacket::TickFinished(_));
                     let now = now_ms();
-                    if pending.is_empty() {
-                        first_ts = now;
-                    }
-                    pending.push(packet.clone());
-                    let OutputPacket::TickFinished(sent_time) = packet else {
-                        return;
-                    };
-                    if end_of_tick {
-                        let batch = std::mem::take(&mut pending);
-                        let info =
+                    match packet {
+                        OutputPacket::TickFinished(sent_time) => {
+                            pending.push(packet);
+                            let batch = std::mem::take(&mut pending);
                             tickbuffer_for_messages
                                 .borrow_mut()
                                 .push(batch, now, sent_time as f64);
-                        log_1(&format!(
-    "sent_gap={:6.1} arr_gap={:6.1} jitter={:6.1} slack={:6.1} spread={:5.1} queued={:4.1}",
-    sent_time - prev_sent, now - prev_arrival, info.jitter, info.slack, now - first_ts, queued
-).into());
-                        prev_sent = sent_time;
-                        prev_arrival = now;
+                        }
+                        OutputPacket::Difference(Difference::SnakeMovement(
+                            _player,
+                            _dir,
+                            sent_time,
+                        )) => {
+                            tickbuffer_for_messages.borrow_mut().push(
+                                vec![packet],
+                                now,
+                                sent_time as f64,
+                            );
+                        }
+                        OutputPacket::Pong => {
+                            PING_START.with(|start| {
+                                let mut start = start.borrow_mut();
+                                if let Some(time) = start.take() {
+                                    let ping = js_sys::Date::now() - time;
+
+                                    update_ping_display(ping);
+                                }
+                            });
+                        }
+                        OutputPacket::State { .. } => {
+                            handle_received_packet(
+                                packet,
+                                &mut world_for_messages.borrow_mut(),
+                                &mut draw_for_messages.borrow_mut(),
+                            );
+                        }
+                        _ => {
+                            pending.push(packet);
+                        }
                     }
                 }
                 Err(err) => {
@@ -192,7 +189,7 @@ pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, dra
         OutputPacket::Difference(Difference::AddedApples(apples)) => {
             world.add_apples(apples);
         }
-        OutputPacket::Difference(Difference::SnakeMovement(player, dir)) => {
+        OutputPacket::Difference(Difference::SnakeMovement(player, dir, _)) => {
             draw.update_snake_dir(dir, Some(player));
             world.move_snake(player, dir);
         }
@@ -202,7 +199,7 @@ pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, dra
         OutputPacket::Difference(Difference::RemoveSnake(player)) => {
             world.remove_snake(player);
         }
-        OutputPacket::TickFinished(number) => {
+        OutputPacket::TickFinished(_time) => {
             world.apply_movements();
             draw.draw_world(world);
         }

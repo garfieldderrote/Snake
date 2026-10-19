@@ -90,7 +90,7 @@ impl Network {
                 span.emit_color(0xFF0000);
                 world.add_apples(apples);
             }
-            OutputPacket::Difference(Difference::SnakeMovement(player, dir)) => {
+            OutputPacket::Difference(Difference::SnakeMovement(player, dir, _)) => {
                 let span = span!("SnakeMovement");
                 span.emit_color(0xFF0000);
                 world.move_snake(player, dir);

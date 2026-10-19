@@ -3,10 +3,13 @@ use snake_core::{
     Board, Deserialize, Difference, Dir, IVec2, InputPacket, OutputPacket, PlayerId, Serialize,
     Snake,
 };
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::SystemTime,
+};
 use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
-use tracy_client::{set_thread_name, span};
+//use tracy_client::{set_thread_name, span};
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -53,7 +56,7 @@ impl Network {
         };
         let listener_shutdown = shutdown.clone();
         tokio::spawn(async move {
-            set_thread_name!("Connection Listener");
+            // set_thread_name!("Connection Listener");
             let weblistener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
             let tcplistener = TcpListener::bind("0.0.0.0:9001").await.unwrap();
             println!("[Server/Network] Init Bind");
@@ -85,7 +88,7 @@ impl Network {
                 let handler_shutdown = shutdown.clone();
 
                 tokio::spawn(async move {
-                    set_thread_name!("Player Listener/Sender");
+                    // set_thread_name!("Player Listener/Sender");
                     if websocket {
                         handle_websocket(socket, player_id, tx, out_rx, handler_shutdown).await
                     } else {
@@ -96,14 +99,18 @@ impl Network {
         });
         network
     }
-    pub fn receive(&mut self) -> (Vec<PlayerId>, Vec<PlayerId>) {
+    pub fn receive(&mut self, start: SystemTime) -> (Vec<PlayerId>, Vec<PlayerId>) {
         let mut disconnected_players = Vec::new();
         let mut connected_players = Vec::new();
         while let Ok(input) = self.receiver.try_recv() {
             match input {
                 Packet::Direction { player, dir } => {
                     if self.buffer.len() <= 2 {
-                        self.snake_movement(player, dir);
+                        self.snake_movement(
+                            player,
+                            dir,
+                            start.elapsed().unwrap().as_millis() as u64,
+                        );
                         self.buffer.entry(player).or_default();
                         self.buffer.get_mut(&player).unwrap().push_back(dir);
                     }
@@ -153,8 +160,8 @@ impl Network {
     pub fn send_packet(&self, packet: OutputPacket) {
         let senders: Vec<_> = self.senders.values().cloned().collect();
         let data = {
-            let span = span!("Output Serialize");
-            span.emit_color(0xFF0000);
+            // let span = span!("Output Serialize");
+            // span.emit_color(0xFF0000);
             packet.serialize()
         };
         for tx in senders {
@@ -187,8 +194,8 @@ impl Network {
         let packet = OutputPacket::Difference(Difference::RemoveSnake(player));
         self.send_packet(packet);
     }
-    pub fn snake_movement(&self, player: PlayerId, dir: Dir) {
-        let packet = OutputPacket::Difference(Difference::SnakeMovement(player, dir));
+    pub fn snake_movement(&self, player: PlayerId, dir: Dir, timestamp: u64) {
+        let packet = OutputPacket::Difference(Difference::SnakeMovement(player, dir, timestamp));
         self.send_packet(packet);
     }
     pub fn remove_apples(&self, removed_apples: Vec<IVec2>) {
@@ -256,10 +263,10 @@ async fn handle_connection(
                     break ConnectionEnd::Disconnect;
                 }
 
-                {
-                    let span = span!("Finished Sending");
-                    span.emit_color(0x0000FF);
-                }
+                // {
+                //     let span = span!("Finished Sending");
+                //     span.emit_color(0x0000FF);
+                // }
 
             }
             _ = shutdown.cancelled() => {
@@ -309,10 +316,10 @@ async fn handle_websocket(
                     break ConnectionEnd::Disconnect;
                 }
 
-                {
-                    let span = span!("Finished Sending");
-                    span.emit_color(0x0000FF);
-                }
+                // {
+                //     let span = span!("Finished Sending");
+                //     span.emit_color(0x0000FF);
+                // }
 
             }
                 _ = shutdown.cancelled() => {

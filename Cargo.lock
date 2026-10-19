@@ -679,7 +679,6 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
- "tracy-client",
 ]
 
 [[package]]
