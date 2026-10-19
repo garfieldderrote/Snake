@@ -37,7 +37,6 @@ enum Packet {
     Disconnect {
         player: PlayerId,
     },
-    Ping,
     PlayerName {
         player: PlayerId,
         name: String,
@@ -125,9 +124,6 @@ impl Network {
                     self.buffer.remove(&player);
                     self.players.retain(|p| p != &player);
                     disconnected_players.push(player);
-                }
-                Packet::Ping => {
-                    //self.send_pong();
                 }
                 Packet::PlayerName { player, name } => {
                     self.player_names.insert(player, name);

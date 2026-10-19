@@ -112,7 +112,7 @@ impl Network {
                 draw_board(world);
             }
             OutputPacket::Pong => {}
-            OutputPacket::Handshake(player, playernames) => {}
+            OutputPacket::Handshake(_player, _playernames) => {}
         }
     }
     pub fn spawn_send_thread(

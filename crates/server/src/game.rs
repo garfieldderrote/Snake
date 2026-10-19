@@ -117,7 +117,6 @@ impl GameSystem {
     ) {
         let mut last_update = Instant::now();
 
-        let mut tick_counter: u64 = 0;
         let start = SystemTime::now();
 
         while !shutdown.is_cancelled() {
@@ -144,7 +143,6 @@ impl GameSystem {
                 // let tick_zone = span!("Tick");
                 // tick_zone.emit_color(0x00FF00);
                 GameSystem::tick(&mut game.world, network, start);
-                tick_counter += 1;
                 last_update = Instant::now();
             }
         }

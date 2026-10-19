@@ -147,7 +147,7 @@ pub fn draw_board<W: DrawWorld>(world: &mut W) {
                 Cell::Snake(_, player) => result.push_str(&format!("{}", get_player_skin(player))),
             }
         }
-        result.push_str("\n");
+        result.push('\n');
     }
     _ = disable_raw_mode();
     print!("{}", result);
