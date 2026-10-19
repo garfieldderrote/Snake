@@ -1,3 +1,14 @@
+#############
+## Next Up ##
+#############
+
+- Points -> for what?
+    - Rounds?
+    - Kills?
+    - Max Length?
+- PlayerNames + Leaderboard?
+
+
 ###################
 ## Core Gameplay ##
 ###################
@@ -22,11 +33,6 @@
 ###################
 
 
-- Points -> for what?
-    - Rounds?
-    - Kills?
-    - Max Length?
-- PlayerNames + Leaderboard?
 
 - PowerUps?
     - Ghost? -> Can overlap itself and others
