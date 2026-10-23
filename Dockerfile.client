@@ -1,0 +1,22 @@
+# Build the WASM client
+FROM rust:1-bookworm AS builder
+
+WORKDIR /app
+
+RUN rustup target add wasm32-unknown-unknown \
+    && cargo install trunk --locked
+
+# Build from the workspace root because crates/client
+# may depend on crates/game.
+COPY . .
+
+RUN cd crates/client-wasm && trunk build --release \
+    --dist /dist
+
+# Serve the resulting static files
+FROM caddy:2-alpine AS runtime
+
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=builder /dist/ /usr/share/caddy/
+
+EXPOSE 80
