@@ -12,6 +12,7 @@ build-images:
     DOCKER_TLS_CERTDIR: /certs
     DOCKER_TLS_VERIFY: "1"
     DOCKER_CERT_PATH: /certs/client
+    BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
   script:

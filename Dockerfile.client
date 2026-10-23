@@ -2,7 +2,7 @@
 FROM rust:1-bookworm AS builder
 
 WORKDIR /app
-ARG TRUNK_VERSION=0.21.14
+ARG TRUNK_VERSION=0.22.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
