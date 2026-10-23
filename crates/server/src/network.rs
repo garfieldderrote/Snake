@@ -5,7 +5,7 @@ use snake_core::{
 };
 use std::{
     collections::{HashMap, VecDeque},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
@@ -44,7 +44,7 @@ enum Packet {
 }
 
 impl Network {
-    pub fn new(shutdown: CancellationToken) -> Self {
+    pub fn new(shutdown: CancellationToken, start: Instant) -> Self {
         let (tx, rx) = mpsc::channel::<Packet>(100);
         let network = Network {
             receiver: rx,
@@ -89,7 +89,8 @@ impl Network {
                 tokio::spawn(async move {
                     // set_thread_name!("Player Listener/Sender");
                     if websocket {
-                        handle_websocket(socket, player_id, tx, out_rx, handler_shutdown).await
+                        handle_websocket(socket, player_id, tx, out_rx, handler_shutdown, start)
+                            .await
                     } else {
                         handle_connection(socket, player_id, tx, out_rx, handler_shutdown).await
                     }
@@ -98,18 +99,14 @@ impl Network {
         });
         network
     }
-    pub fn receive(&mut self, start: SystemTime) -> (Vec<PlayerId>, Vec<PlayerId>) {
+    pub fn receive(&mut self, start: Instant) -> (Vec<PlayerId>, Vec<PlayerId>) {
         let mut disconnected_players = Vec::new();
         let mut connected_players = Vec::new();
         while let Ok(input) = self.receiver.try_recv() {
             match input {
                 Packet::Direction { player, dir } => {
                     if self.buffer.len() <= 2 {
-                        self.snake_movement(
-                            player,
-                            dir,
-                            start.elapsed().unwrap().as_millis() as u64,
-                        );
+                        self.snake_movement(player, dir, start.elapsed().as_millis() as u64);
                         self.buffer.entry(player).or_default();
                         self.buffer.get_mut(&player).unwrap().push_back(dir);
                     }
@@ -172,6 +169,7 @@ impl Network {
     }
 
     pub fn send_handshake(&self) {
+        println!("Sent Handshake!");
         for player in self.senders.keys() {
             let packet = OutputPacket::Handshake(
                 *player,
@@ -289,6 +287,7 @@ async fn handle_websocket(
     tx: mpsc::Sender<Packet>,
     mut out_rx: mpsc::Receiver<Vec<u8>>,
     shutdown: CancellationToken,
+    start: Instant,
 ) {
     let mut websocket = match accept_async(socket).await {
         Ok(websocket) => websocket,
@@ -301,7 +300,7 @@ async fn handle_websocket(
             result = websocket.next() => {
             match result {
                 Some(Ok(Message::Binary(buf))) => {
-                    process_recieved_bytes(&buf, tx.clone(), player_id,&mut websocket).await;
+                    process_recieved_bytes(&buf, tx.clone(), player_id,&mut websocket,start).await;
                 }
                 Some(Ok(_)) => {}
 
@@ -317,10 +316,6 @@ async fn handle_websocket(
                     break ConnectionEnd::Disconnect;
                 }
 
-                // {
-                //     let span = span!("Finished Sending");
-                //     span.emit_color(0x0000FF);
-                // }
 
             }
                 _ = shutdown.cancelled() => {
@@ -341,6 +336,7 @@ async fn process_recieved_bytes(
     tx: Sender<Packet>,
     player_id: PlayerId,
     websocket: &mut WebSocketStream<TcpStream>,
+    start: Instant,
 ) {
     match InputPacket::deserialize(bytes) {
         Ok(InputPacket::Direction { dir }) => {
@@ -354,7 +350,7 @@ async fn process_recieved_bytes(
             {}
         }
         Ok(InputPacket::Ping) => {
-            let packet = OutputPacket::Pong;
+            let packet = OutputPacket::Pong(start.elapsed().as_millis() as u64);
             let data = packet.serialize();
 
             _ = websocket.send(Message::Binary(data.into())).await.is_err();

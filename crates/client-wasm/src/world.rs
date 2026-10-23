@@ -40,6 +40,9 @@ impl ClientWorld {
     pub fn move_snake(&mut self, player: PlayerId, dir: Dir) {
         self.snake_movements.insert(player, dir);
     }
+    pub fn tick_snake(&mut self, player: PlayerId, dir: Option<Dir>) {
+        SnakeSystem::tick(self, dir, &player);
+    }
     pub fn remove_snake(&mut self, player: PlayerId) {
         self.snakes.remove(&player);
     }
@@ -53,6 +56,7 @@ impl ClientWorld {
         for (player, dir) in self.snake_movements.clone() {
             SnakeSystem::tick(self, Some(dir), &player);
         }
+        self.snake_movements = HashMap::new();
     }
 }
 

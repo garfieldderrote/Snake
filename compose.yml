@@ -1,6 +1,6 @@
 services:
   server:
-    image: ${CI_REGISTRY_IMAGE}/server:${IMAGE_TAG:-latest}
+#    image: ${CI_REGISTRY_IMAGE}/server:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile.server
@@ -13,7 +13,7 @@ services:
       - game-network
 
   client:
-    image: ${CI_REGISTRY_IMAGE}/client:${IMAGE_TAG:-latest}
+#    image: ${CI_REGISTRY_IMAGE}/client:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile.client

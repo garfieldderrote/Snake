@@ -9,13 +9,12 @@ mod animation;
 mod draw_snake;
 mod player_list;
 
-use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Vec2};
+use snake_core::{Board, Cell, Dir, IVec2, OutputPacket, PlayerId, Snake, Vec2};
 use wasm_bindgen::{JsCast, JsValue, prelude::Closure};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use crate::{
     draw::{draw_snake::DrawSnake, player_list::PlayerListView},
-    handle_received_packet, now_ms,
     tick::TickBuffer,
     world::ClientWorld,
 };
@@ -123,13 +122,12 @@ impl Draw {
         self.cell_size = cell_size;
         self.snake_drawer.cell_size = cell_size;
         self.world = world.clone();
-        //TODO: use the self.cell_size everywhere
-        for (player, snake) in world.snakes() {
-            self.snake_drawer.reset_tick(player, snake);
-        }
         let _ = self
             .player_list_drawer
             .draw(&self.player_names, &self.player_points);
+    }
+    pub fn reset_animation(&mut self, player: &PlayerId, snake: &Snake) {
+        self.snake_drawer.reset_tick(player, snake);
     }
     pub fn draw_frame(&mut self, world: &ClientWorld, dt: f64) {
         let width = world.get_width();
@@ -260,60 +258,92 @@ impl Draw {
 
 type CallbackSlot = Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>;
 
-pub fn start_render_loop(
-    world: Rc<RefCell<ClientWorld>>,
-    draw: Rc<RefCell<Draw>>,
-    tickbuffer: Rc<RefCell<TickBuffer<Vec<OutputPacket>>>>,
-) {
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-
-    let callback_slot: CallbackSlot = Rc::new(RefCell::new(None));
-
-    let callback_slot_clone = Rc::clone(&callback_slot);
-    let mut last_timestamp: Option<f64> = None;
-
-    *callback_slot.borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-        let dt = last_timestamp.map(|last| timestamp - last).unwrap_or(0.0);
-        // delta time in ms
-        // 1. Play every tick that is due (usually none, sometimes one, rarely more).
-        loop {
-            // The borrow ends at the semicolon, before we touch world/draw.
-            let due = tickbuffer.borrow_mut().pop_due(now_ms());
-            let Some((_play_at, packets)) = due else {
-                break;
-            };
-            for packet in packets {
-                handle_received_packet(packet, &mut world.borrow_mut(), &mut draw.borrow_mut());
-            }
-        }
-        {
-            let world = world.borrow();
-            draw.borrow_mut().draw_frame(&world, dt);
-        }
-        last_timestamp = Some(timestamp);
-
-        if let Some(window) = web_sys::window() {
-            let callback_slot = callback_slot_clone.borrow();
-
-            if let Some(callback) = callback_slot.as_ref() {
-                let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
-            }
-        }
-    }));
-
-    if let Some(callback) = callback_slot.borrow().as_ref() {
-        let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
-    }
-
-    // Keep the callback alive for as long as the animation loop runs.
-    std::mem::forget(callback_slot);
-}
+// pub fn start_render_loop(
+//     world: Rc<RefCell<ClientWorld>>,
+//     draw: Rc<RefCell<Draw>>,
+//     tickbuffer: Rc<RefCell<TickBuffer<Vec<OutputPacket>>>>,
+// ) {
+//     let Some(window) = web_sys::window() else {
+//         return;
+//     };
+//
+//     let callback_slot: CallbackSlot = Rc::new(RefCell::new(None));
+//
+//     let callback_slot_clone = Rc::clone(&callback_slot);
+//     let mut last_timestamp: Option<f64> = None;
+//
+//     *callback_slot.borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+//         let dt = last_timestamp.map(|last| timestamp - last).unwrap_or(0.0);
+//         // delta time in ms
+//         // 1. Play every tick that is due (usually none, sometimes one, rarely more).
+//         loop {
+//             // The borrow ends at the semicolon, before we touch world/draw.
+//             let due = tickbuffer.borrow_mut().pop_due(now_ms());
+//             let Some((_play_at, packets)) = due else {
+//                 break;
+//             };
+//             for packet in packets {
+//                 handle_received_packet(packet, &mut world.borrow_mut(), &mut draw.borrow_mut());
+//             }
+//         }
+//         {
+//             let world = world.borrow();
+//             draw.borrow_mut().draw_frame(&world, dt);
+//         }
+//         last_timestamp = Some(timestamp);
+//
+//         if let Some(window) = web_sys::window() {
+//             let callback_slot = callback_slot_clone.borrow();
+//
+//             if let Some(callback) = callback_slot.as_ref() {
+//                 let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
+//             }
+//         }
+//     }));
+//
+//     if let Some(callback) = callback_slot.borrow().as_ref() {
+//         let _ = window.request_animation_frame(callback.as_ref().unchecked_ref());
+//     }
+//
+//     // Keep the callback alive for as long as the animation loop runs.
+//     std::mem::forget(callback_slot);
+// }
 
 fn check_valid_input(dira: Dir, dirb: Dir) -> bool {
     !((dira == Dir::Up && dirb == Dir::Down)
         || (dira == Dir::Down && dirb == Dir::Up)
         || (dira == Dir::Left && dirb == Dir::Right)
         || (dira == Dir::Right && dirb == Dir::Left))
+}
+
+pub fn update_ping_display(ping: f64) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+
+    let Some(document) = window.document() else {
+        return;
+    };
+
+    let Some(element) = document.get_element_by_id("ping") else {
+        return;
+    };
+
+    element.set_text_content(Some(&format!("{} ms", ping.round() as u32)));
+
+    let color = if ping < 50.0 {
+        "#4ade80" // green
+    } else if ping < 100.0 {
+        "#facc15" // yellow
+    } else if ping < 200.0 {
+        "#fb923c" // orange
+    } else {
+        "#ef4444" // red
+    };
+
+    let _ = element
+        .dyn_ref::<web_sys::HtmlElement>()
+        .unwrap()
+        .style()
+        .set_property("color", color);
 }

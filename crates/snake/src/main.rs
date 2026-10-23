@@ -1,4 +1,7 @@
-use std::io::{Write, stdin, stdout};
+use std::{
+    io::{Write, stdin, stdout},
+    time::Instant,
+};
 
 use snake_client::Input;
 use snake_server::{Game, GameSystem};
@@ -64,9 +67,10 @@ pub async fn join(ip: String, shutdown: CancellationToken) {
     }
 }
 fn host(shutdown: CancellationToken) {
-    let mut network = snake_server::Network::new(shutdown.clone());
+    let start = Instant::now();
+    let mut network = snake_server::Network::new(shutdown.clone(), start);
     println!("\r[Server] Initialized Network");
-    let mut game = Game::new();
+    let mut game = Game::new(start);
     GameSystem::run(&mut game, &mut network, shutdown);
 }
 

@@ -9,8 +9,8 @@
 
     
 <script type="module">
-import init, * as bindings from '/snake-client-wasm-3d30a2d254a179f0.js';
-const wasm = await init({ module_or_path: '/snake-client-wasm-3d30a2d254a179f0_bg.wasm' });
+import init, * as bindings from '/snake-client-wasm-25f29fd0258e4140.js';
+const wasm = await init({ module_or_path: '/snake-client-wasm-25f29fd0258e4140_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -20,7 +20,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
     <link rel="stylesheet" href="/style-96b2822977e97240.css" integrity="sha384-RNRyaX/XVk+HM6CHTo12jmHZseJ6eh9+DjSZVnwWwdI69tOF/tejh6qUP3H1FZcd"/>
-<link rel="modulepreload" href="/snake-client-wasm-3d30a2d254a179f0.js" crossorigin="anonymous" integrity="sha384-5/MVSLtyD4vjyQXVSIMHwIM07G9vKvCGa0OOjM8y14empvNFOc86ask3dgx8+tk7"><link rel="preload" href="/snake-client-wasm-3d30a2d254a179f0_bg.wasm" crossorigin="anonymous" integrity="sha384-lxSFoQ7Ffgp6djhvzo+b3028zBN0qlKRCqTqw9Qj7dAk5gUlDspjHJPCwpusylrU" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/snake-client-wasm-25f29fd0258e4140.js" crossorigin="anonymous" integrity="sha384-zan42iidaI4bybEUBx95J6VlR35PscctS/8GD97e8D4eZCUkdci6EUZwPRRV64Um"><link rel="preload" href="/snake-client-wasm-25f29fd0258e4140_bg.wasm" crossorigin="anonymous" integrity="sha384-9ucr5L70ME5+XLSIed5mDZDEoImJtOLbaYRCqtkfleI9J2NGpCEuLQYlQ+EKWx2+" as="fetch" type="application/wasm"></head>
 
 <body>
 
@@ -43,8 +43,8 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
         <input
             id="server-ip"
             type="text"
-            placeholder="127.0.0.1:9000"
-            value="127.0.0.1:9000"
+            placeholder="127.0.0.1"
+            value="127.0.0.1"
             autocomplete="off"
         >
     </div>

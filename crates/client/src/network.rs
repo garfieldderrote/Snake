@@ -111,7 +111,7 @@ impl Network {
                 world.apply_movements();
                 draw_board(world);
             }
-            OutputPacket::Pong => {}
+            OutputPacket::Pong(_) => {}
             OutputPacket::Handshake(_player, _playernames) => {}
             OutputPacket::Points(_) => {}
         }

@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -24,8 +26,9 @@ async fn main() {
     shutdown.cancel();
 }
 fn host(shutdown: CancellationToken) {
-    let mut network = Network::new(shutdown.clone());
+    let start = Instant::now();
+    let mut network = Network::new(shutdown.clone(), start);
     println!("\r[Server] Initialized Network");
-    let mut game = Game::new();
+    let mut game = Game::new(start);
     GameSystem::run(&mut game, &mut network, shutdown);
 }

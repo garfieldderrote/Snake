@@ -32,7 +32,7 @@ pub enum OutputPacket {
     TickFinished(u64),
     Handshake(PlayerId, Vec<(PlayerId, String)>),
     Points(Vec<(PlayerId, u64)>),
-    Pong,
+    Pong(u64),
 }
 
 pub trait Serialize {
@@ -115,8 +115,9 @@ impl Serialize for OutputPacket {
                 result.push(0x06);
                 result.extend_from_slice(&number.to_be_bytes());
             }
-            OutputPacket::Pong => {
+            OutputPacket::Pong(server_time) => {
                 result.push(0x07);
+                result.extend_from_slice(&server_time.to_be_bytes());
             }
             OutputPacket::Handshake(playerid, playernames) => {
                 result.push(0x08);
@@ -281,7 +282,10 @@ impl Deserialize for OutputPacket {
                 let number = r.u64_be()?;
                 OutputPacket::TickFinished(number)
             }
-            0x07 => OutputPacket::Pong,
+            0x07 => {
+                let server_time = r.u64_be()?;
+                OutputPacket::Pong(server_time)
+            }
             0x08 => {
                 let playerid = PlayerId(r.u64_be()?);
                 let mut playernames = Vec::new();

@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     thread::sleep,
-    time::{self, Duration, Instant, SystemTime},
+    time::{self, Duration, Instant},
 };
 
 use rand::{RngExt, rng};
@@ -17,6 +17,7 @@ pub struct GameSystem;
 
 pub struct Game<W: SnakeWorld> {
     world: W,
+    start: Instant,
 }
 
 pub struct MultiplayerWorld {
@@ -115,17 +116,18 @@ impl GameSystem {
         network: &mut Network,
         shutdown: CancellationToken,
     ) {
-        let mut last_update = Instant::now();
+        const TICK: Duration = Duration::from_millis(150);
+        const POLL: Duration = Duration::from_millis(5);
 
-        let start = SystemTime::now();
+        let start = game.start;
 
+        let k = start.elapsed().as_millis() / TICK.as_millis() + 1;
+        let mut next_tick = start + TICK * k as u32;
         while !shutdown.is_cancelled() {
-            sleep(time::Duration::from_millis(20));
+            let now = Instant::now();
+            let wake = (now + POLL).min(next_tick);
+            sleep(wake.saturating_duration_since(now));
 
-            // fetch the network to store input in buffer
-            // easiest way to get disconnected_players from network
-            // let network_fetch_span = span!("NetworkFetch");
-            // network_fetch_span.emit_color(0xFF0000);
             let (disconnected_players, connected_players) = network.receive(start);
             for player in disconnected_players {
                 game.world.remove_snake(&player);
@@ -137,21 +139,14 @@ impl GameSystem {
                     game.world.get_snake_hashmap().clone(),
                 );
             }
-            //           drop(network_fetch_span);
 
-            if last_update.elapsed() >= Duration::from_millis(150) {
-                // let tick_zone = span!("Tick");
-                // tick_zone.emit_color(0x00FF00);
+            if Instant::now() >= next_tick {
                 GameSystem::tick(&mut game.world, network, start);
-                last_update = Instant::now();
+                next_tick += TICK; // advance the deadline, don't reset it from now()
             }
         }
     }
-    pub fn tick<W: GameWorld + SnakeWorld>(
-        world: &mut W,
-        network: &mut Network,
-        start: SystemTime,
-    ) {
+    pub fn tick<W: GameWorld + SnakeWorld>(world: &mut W, network: &mut Network, start: Instant) {
         // get all connected players
         let players = network.get_players().clone();
         for player in players {
@@ -164,12 +159,12 @@ impl GameSystem {
             let input_dir = network.get_input_player(player);
             // store input dir for transmision
             if let Some(dir) = input_dir {
-                network.snake_movement(player, dir, start.elapsed().unwrap().as_millis() as u64);
+                network.snake_movement(player, dir, start.elapsed().as_millis() as u64);
             } else {
                 network.snake_movement(
                     player,
                     world.snake(&player).unwrap().get_dir(),
-                    start.elapsed().unwrap().as_millis() as u64,
+                    start.elapsed().as_millis() as u64,
                 );
             }
             SnakeSystem::tick(world, input_dir, &player);
@@ -201,7 +196,7 @@ impl GameSystem {
         if !added_apples.is_empty() {
             network.add_apples(added_apples);
         }
-        network.send_finished(start.elapsed().unwrap().as_millis() as u64);
+        network.send_finished(start.elapsed().as_millis() as u64);
         let mut player_points = Vec::new();
         for player in network.get_players() {
             let Some(snake) = world.snake(player) else {
@@ -217,7 +212,7 @@ impl GameSystem {
 }
 
 impl Game<MultiplayerWorld> {
-    pub fn new() -> Self {
+    pub fn new(start: Instant) -> Self {
         let snakes: HashMap<PlayerId, Snake> = HashMap::new();
 
         Game {
@@ -225,12 +220,13 @@ impl Game<MultiplayerWorld> {
                 board: Board::new(25, 25, 15),
                 snakes,
             },
+            start,
         }
     }
 }
 
 impl Default for Game<MultiplayerWorld> {
     fn default() -> Self {
-        Self::new()
+        Self::new(Instant::now())
     }
 }
