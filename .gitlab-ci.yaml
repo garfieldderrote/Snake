@@ -1,3 +1,9 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - when: never
+
 stages:
   - build
 
@@ -14,9 +20,10 @@ build:
     DOCKER_CERT_PATH: /certs/client
     IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
   before_script:
-    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin <<< "$CI_REGISTRY_PASSWORD"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
   script:
     - docker compose build
     - docker compose push
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
