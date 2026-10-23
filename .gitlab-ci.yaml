@@ -1,0 +1,22 @@
+stages:
+  - build
+
+build:
+  stage: build
+  image: docker:cli
+  services:
+    - name: docker:dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: /certs/client
+    IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+  before_script:
+    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin <<< "$CI_REGISTRY_PASSWORD"
+  script:
+    - docker compose build
+    - docker compose push
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

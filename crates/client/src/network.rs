@@ -113,6 +113,7 @@ impl Network {
             }
             OutputPacket::Pong => {}
             OutputPacket::Handshake(_player, _playernames) => {}
+            OutputPacket::Points(_) => {}
         }
     }
     pub fn spawn_send_thread(
