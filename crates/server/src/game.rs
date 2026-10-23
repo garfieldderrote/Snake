@@ -202,6 +202,15 @@ impl GameSystem {
             network.add_apples(added_apples);
         }
         network.send_finished(start.elapsed().unwrap().as_millis() as u64);
+        let mut player_points = Vec::new();
+        for player in network.get_players() {
+            let Some(snake) = world.snake(player) else {
+                continue;
+            };
+
+            player_points.push((*player, snake.segments.len() as u64));
+        }
+        network.send_points(player_points);
 
         // sending the current board state
     }

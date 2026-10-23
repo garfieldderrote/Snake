@@ -207,6 +207,10 @@ impl Network {
         let packet = OutputPacket::TickFinished(tick_counter);
         self.send_packet(packet);
     }
+    pub fn send_points(&self, player_points: Vec<(PlayerId, u64)>) {
+        let packet = OutputPacket::Points(player_points);
+        self.send_packet(packet);
+    }
 }
 
 enum ConnectionEnd {

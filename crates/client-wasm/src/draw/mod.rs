@@ -27,6 +27,7 @@ pub struct Draw {
     world: ClientWorld,
     client_id: Option<PlayerId>,
     player_names: HashMap<PlayerId, String>,
+    player_points: HashMap<PlayerId, u64>,
     snake_drawer: DrawSnake,
     player_list_drawer: PlayerListView,
 }
@@ -94,6 +95,7 @@ impl Draw {
             world: ClientWorld::new(Board::new(0, 0, 0), HashMap::new()),
             client_id: None,
             player_names: HashMap::new(),
+            player_points: HashMap::new(),
         })
     }
     pub fn set_client_id(&mut self, id: PlayerId) {
@@ -109,6 +111,13 @@ impl Draw {
         }
         self.player_names = player_names;
     }
+    pub fn set_player_points(&mut self, player_points: Vec<(PlayerId, u64)>) {
+        let mut player_points_new = HashMap::new();
+        for (player, points) in player_points {
+            player_points_new.insert(player, points);
+        }
+        self.player_points = player_points_new;
+    }
     pub fn draw_world(&mut self, world: &mut ClientWorld) {
         let cell_size = self.size.0 as f64 / world.get_width() as f64;
         self.cell_size = cell_size;
@@ -118,7 +127,9 @@ impl Draw {
         for (player, snake) in world.snakes() {
             self.snake_drawer.reset_tick(player, snake);
         }
-        let _ = self.player_list_drawer.draw(&self.player_names);
+        let _ = self
+            .player_list_drawer
+            .draw(&self.player_names, &self.player_points);
     }
     pub fn draw_frame(&mut self, world: &ClientWorld, dt: f64) {
         let width = world.get_width();

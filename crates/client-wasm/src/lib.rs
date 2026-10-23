@@ -219,6 +219,9 @@ pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, dra
             draw.set_player_names(playernames);
             log_1(&format!("[lol]player_id = {:?}", draw.get_client_id()).into());
         }
+        OutputPacket::Points(player_points) => {
+            draw.set_player_points(player_points);
+        }
     }
 }
 
