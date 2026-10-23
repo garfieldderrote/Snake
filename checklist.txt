@@ -8,16 +8,12 @@
     - Max Length?
 - PlayerNames + Leaderboard? ✅
 
-- put player input directly into tick buffer for animation
-  -> better response time = better feel
-  -> input delay = margin, instead of margin + ping
-
 
 ###############
 ## Cool Idea ##
 ###############
 
-- Multiple server behind one proxy
+- Multiple servers behind one proxy
   - multiple game modes with gimmicks -> inspo google snake
   - proxy has list of available game modes
       - Client can choose and proxy routes traffic to that server.
@@ -44,14 +40,6 @@
 ## Core Gameplay ##
 ###################
 
-- Snake Killing ✅
-- Player disconnecting ✅
-- optimize Network traffic
-    - send differences not entire board ✅
-    - client prediction?
-    - implement the protocol ✅
-- Graphics? - Browser WIP
-    - Smooth interpolating ✅
 - Better spawning
     - Overlap check
     - not in front of other snakes/ too close to edge?
@@ -81,36 +69,20 @@
 
 - Dynamic board size with player count
 
-###############
-# Animations  #
-###############
-
-- Problem -> Responsible inputs(low latency), but smooth look.
-
-- Timeline ✅
-    - tick recieved => halfway before actual tile ✅
-    - half a tick later => directly on the tile ✅
-    - next tick => halfway behind the tile ✅
-    - repeat ✅
-    
-- works for straight line ✅
-- bends could be weird -> only now snake bends on next tick
-    - snake already half on next tile then receive turn -> snapping
-    - apple also eaten the same instant if there is one.
-    
-    -> Fix: - maybe send player directions as soon as known (to reduce snapping) ✅
-            - get the own clients input immedietly -> could cause de-sync ✅
-                  - de-sync fix: only show animation of inputs no updating the world of of that.
-
-## Drawing
-
-- Head with arbitrary offset and rotation ✅
-    - each frame move to target position (halfway behind the current tile)
-    - move in a circular-ish way
-    - arrive there exactly on the new tick -> snap if necessary
-    - Connect to body with strokes?
-
-- Tail same as head
-  - maybe more rigid -> path already known
+- apply user input directly for movement?
+  -> Own client tick loop synced with server
+    - smoothly shorten or lengthen time to keep sync
+    - server remains ground truth
+  -> Inputs get applied directly+animation
 
 
+tick:    1      2      3      4
+      ---|------|------|------|---- .... Server
+          ↓ takes time
+      --|------|------|------|---- .... Client
+tick:   1      2      3      4
+---->  
+
+- Client a bit ahead (mind. ping ms + margin)
+  -> After missed tick -> server sees through tick count in Input packet
+    - send Outputpacket::State{}
