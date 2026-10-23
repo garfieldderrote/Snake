@@ -7,13 +7,14 @@ use web_sys::{MessageEvent, console::log_1};
 
 use crate::{
     WEBSOCKET,
-    clock::{CLOCK, PING_SENT},
+    clock::{CLOCK, INPUTS, PING_SENT},
     draw::{Draw, update_ping_display},
     util::now_ms,
     world::ClientWorld,
 };
 thread_local! {
     pub static INCOMING: RefCell<Vec<(f64,OutputPacket)>> = const { RefCell::new(Vec::new()) };
+    pub static LAST_RECEIVED_TICK: RefCell<Option<u64>> = const  {RefCell::new(None)}
 }
 
 pub fn start_network(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>) {
@@ -54,6 +55,8 @@ pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, dra
             snakes,
         } => {
             *world = ClientWorld::new(board_state, snakes);
+            INPUTS.with(|i| i.borrow_mut().clear());
+            draw.draw_world(world);
         }
         OutputPacket::Difference(Difference::RemovedApples(apples)) => {
             world.remove_apple(apples);
@@ -68,19 +71,24 @@ pub fn handle_received_packet(packet: OutputPacket, world: &mut ClientWorld, dra
             log_1(&format!("Move PlayerId {:?}", player).into());
             draw.update_snake_dir(dir, Some(player));
             world.move_snake(player, dir);
-            let Some(snake) = world.snake(&player) else {
-                return;
-            };
         }
         OutputPacket::Difference(Difference::AddSnake(snake)) => {
-            world.add_snake(snake);
+            world.add_snake(snake.clone());
+
+            if draw.get_client_id().is_some_and(|p| snake.player == p) {
+                world.tick_snake(snake.player, None);
+            }
         }
         OutputPacket::Difference(Difference::RemoveSnake(player)) => {
             world.remove_snake(player);
         }
-        OutputPacket::TickFinished(sent_time) => {
+        OutputPacket::TickFinished(sent_time, tick) => {
+            LAST_RECEIVED_TICK.with(|t| *t.borrow_mut() = Some(tick));
             world.apply_movements();
             for (player, snake) in world.snakes() {
+                if draw.get_client_id().is_some_and(|p| *player == p) {
+                    continue;
+                }
                 draw.reset_animation(&player, snake);
             }
             //draw.draw_world(world);

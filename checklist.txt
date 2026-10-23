@@ -76,8 +76,8 @@
   -> Inputs get applied directly+animation
 
 
-tick:    1      2      3      4
-      ---|------|------|------|---- .... Server
+tick:     1      2      3      4
+      ----|------|------|------|---- .... Server
           ↓ takes time
       --|------|------|------|---- .... Client
 tick:   1      2      3      4

@@ -82,27 +82,20 @@ impl ClockSync {
 
 pub struct Frame {
     pub tick: i64,  // current client tick
-    pub due: i64,   // how many ticks to simulate this frame (usually 0 or 1)
     pub alpha: f64, // 0..1 progress through the current tick, for rendering
 }
 
 #[derive(Default)]
-pub struct Ticker {
-    last: Option<i64>,
-}
+pub struct Ticker {}
 
 impl Ticker {
     pub fn poll(&mut self, t: f64) -> Frame {
         let exact = t / TICK_MS;
-        let last = self.last.unwrap_or(exact.floor() as i64);
         // never go backwards if the estimate wobbles a ms or two
-        let tick = (exact.floor() as i64).max(last);
+        let tick = exact.floor() as i64;
         // after a background tab, don't replay a pile of ticks
-        let due = (tick - last).min(MAX_CATCH_UP);
-        self.last = Some(tick);
         Frame {
             tick,
-            due,
             alpha: (exact - tick as f64).max(0.0),
         }
     }

@@ -23,12 +23,14 @@ pub struct Network {
     buffer: HashMap<PlayerId, VecDeque<Dir>>,
     player_names: HashMap<PlayerId, String>,
     players: Vec<PlayerId>,
+    pub desynced_players: Vec<PlayerId>,
 }
 
 enum Packet {
     Direction {
         player: PlayerId,
         dir: Dir,
+        tick_number: u64,
     },
     NewConnection {
         player: PlayerId,
@@ -52,6 +54,7 @@ impl Network {
             buffer: HashMap::new(),
             player_names: HashMap::new(),
             players: Vec::new(),
+            desynced_players: Vec::new(),
         };
         let listener_shutdown = shutdown.clone();
         tokio::spawn(async move {
@@ -99,13 +102,23 @@ impl Network {
         });
         network
     }
-    pub fn receive(&mut self, start: Instant) -> (Vec<PlayerId>, Vec<PlayerId>) {
+    pub fn receive(&mut self, start: Instant, tick: u64) -> (Vec<PlayerId>, Vec<PlayerId>) {
         let mut disconnected_players = Vec::new();
         let mut connected_players = Vec::new();
         while let Ok(input) = self.receiver.try_recv() {
             match input {
-                Packet::Direction { player, dir } => {
-                    if self.buffer.len() <= 2 {
+                Packet::Direction {
+                    player,
+                    dir,
+                    tick_number,
+                } => {
+                    println!("received tick: {}, actual tick: {}", tick_number, tick);
+                    if tick_number != tick {
+                        self.desynced_players.push(player);
+                        self.buffer.entry(player).or_default();
+                        self.buffer.get_mut(&player).unwrap().clear();
+                    }
+                    if self.buffer.len() <= 1 {
                         self.snake_movement(player, dir, start.elapsed().as_millis() as u64);
                         self.buffer.entry(player).or_default();
                         self.buffer.get_mut(&player).unwrap().push_back(dir);
@@ -151,6 +164,19 @@ impl Network {
         self.send_packet(packet);
     }
 
+    pub fn send_game_state_player(
+        &self,
+        board: Board,
+        snakes: HashMap<PlayerId, Snake>,
+        player_id: PlayerId,
+    ) {
+        let packet = OutputPacket::State {
+            board_state: board,
+            snakes,
+        };
+        self.send_packet_to_player(packet, player_id);
+    }
+
     pub fn send_packet(&self, packet: OutputPacket) {
         let senders: Vec<_> = self.senders.values().cloned().collect();
         let data = {
@@ -163,7 +189,9 @@ impl Network {
         }
     }
     pub fn send_packet_to_player(&self, packet: OutputPacket, player_id: PlayerId) {
-        let sender = self.senders.get(&player_id).unwrap();
+        let Some(sender) = self.senders.get(&player_id) else {
+            return;
+        };
         let data = packet.serialize();
         _ = sender.try_send(data.clone());
     }
@@ -201,8 +229,8 @@ impl Network {
         let packet = OutputPacket::Difference(Difference::AddedApples(added_apples));
         self.send_packet(packet);
     }
-    pub fn send_finished(&self, tick_counter: u64) {
-        let packet = OutputPacket::TickFinished(tick_counter);
+    pub fn send_finished(&self, time: u64, tick_counter: u64) {
+        let packet = OutputPacket::TickFinished(time, tick_counter);
         self.send_packet(packet);
     }
     pub fn send_points(&self, player_points: Vec<(PlayerId, u64)>) {
@@ -237,10 +265,11 @@ async fn handle_connection(
                     //TODO: length bounds check
                     let mut buf = vec![0;length as usize];
                     reader.read_exact(&mut buf).await.unwrap();
-                    if let Ok(InputPacket::Direction { dir }) = InputPacket::deserialize(&buf)
+                    if let Ok(InputPacket::Direction { dir, tick_number }) = InputPacket::deserialize(&buf)
                     && tx.send(Packet::Direction {
                         player: player_id,
                         dir,
+                    tick_number
                     }).await.is_err()
                     {
                         break ConnectionEnd::Disconnect;
@@ -339,11 +368,12 @@ async fn process_recieved_bytes(
     start: Instant,
 ) {
     match InputPacket::deserialize(bytes) {
-        Ok(InputPacket::Direction { dir }) => {
+        Ok(InputPacket::Direction { dir, tick_number }) => {
             if tx
                 .send(Packet::Direction {
                     player: player_id,
                     dir,
+                    tick_number,
                 })
                 .await
                 .is_err()

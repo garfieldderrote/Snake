@@ -120,6 +120,7 @@ impl GameSystem {
         const POLL: Duration = Duration::from_millis(5);
 
         let start = game.start;
+        let mut tick: u64 = 1;
 
         let k = start.elapsed().as_millis() / TICK.as_millis() + 1;
         let mut next_tick = start + TICK * k as u32;
@@ -128,21 +129,26 @@ impl GameSystem {
             let wake = (now + POLL).min(next_tick);
             sleep(wake.saturating_duration_since(now));
 
-            let (disconnected_players, connected_players) = network.receive(start);
+            let (disconnected_players, connected_players) = network.receive(start, tick);
             for player in disconnected_players {
                 game.world.remove_snake(&player);
                 network.remove_snake(player);
             }
-            for _player in connected_players {
-                network.send_game_state(
+            for player in connected_players {
+                println!("Sent Gamestate!");
+                network.send_game_state_player(
                     game.world.board().clone(),
                     game.world.get_snake_hashmap().clone(),
+                    player,
                 );
             }
 
             if Instant::now() >= next_tick {
                 GameSystem::tick(&mut game.world, network, start);
+
+                network.send_finished(start.elapsed().as_millis() as u64, tick);
                 next_tick += TICK; // advance the deadline, don't reset it from now()
+                tick += 1;
             }
         }
     }
@@ -196,7 +202,6 @@ impl GameSystem {
         if !added_apples.is_empty() {
             network.add_apples(added_apples);
         }
-        network.send_finished(start.elapsed().as_millis() as u64);
         let mut player_points = Vec::new();
         for player in network.get_players() {
             let Some(snake) = world.snake(player) else {
@@ -206,6 +211,15 @@ impl GameSystem {
             player_points.push((*player, snake.segments.len() as u64));
         }
         network.send_points(player_points);
+
+        for player in &network.desynced_players {
+            network.send_game_state_player(
+                world.board().clone(),
+                world.get_snake_hashmap().clone(),
+                *player,
+            );
+        }
+        network.desynced_players = Vec::new();
 
         // sending the current board state
     }

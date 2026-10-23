@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub enum InputPacket {
-    Direction { dir: Dir },
+    Direction { dir: Dir, tick_number: u64 },
     Handshake(String),
     Ping,
 }
@@ -29,7 +29,7 @@ pub enum OutputPacket {
         snakes: HashMap<PlayerId, Snake>,
     },
     Difference(Difference),
-    TickFinished(u64),
+    TickFinished(u64, u64),
     Handshake(PlayerId, Vec<(PlayerId, String)>),
     Points(Vec<(PlayerId, u64)>),
     Pong(u64),
@@ -111,8 +111,9 @@ impl Serialize for OutputPacket {
                     result.extend_from_slice(snake.iter().as_slice());
                 }
             }
-            OutputPacket::TickFinished(number) => {
+            OutputPacket::TickFinished(time, number) => {
                 result.push(0x06);
+                result.extend_from_slice(&time.to_be_bytes());
                 result.extend_from_slice(&number.to_be_bytes());
             }
             OutputPacket::Pong(server_time) => {
@@ -279,8 +280,9 @@ impl Deserialize for OutputPacket {
                 OutputPacket::Difference(Difference::SnakeMovement(player, dir, timestamp))
             }
             0x06 => {
+                let time = r.u64_be()?;
                 let number = r.u64_be()?;
-                OutputPacket::TickFinished(number)
+                OutputPacket::TickFinished(time, number)
             }
             0x07 => {
                 let server_time = r.u64_be()?;
@@ -378,7 +380,7 @@ impl Serialize for InputPacket {
     fn serialize(&self) -> Vec<u8> {
         let mut result = Vec::new();
         match self {
-            InputPacket::Direction { dir } => {
+            InputPacket::Direction { dir, tick_number } => {
                 result.push(0x00);
                 match dir {
                     Dir::Up => {
@@ -394,6 +396,7 @@ impl Serialize for InputPacket {
                         result.push(0x03);
                     }
                 }
+                result.extend_from_slice(&tick_number.to_be_bytes());
             }
             InputPacket::Ping => {
                 result.push(0x07);
@@ -425,7 +428,8 @@ impl Deserialize for InputPacket {
                     0x03 => Dir::Right,
                     _ => return Err(DecodeError::InvalidPacketType(0)),
                 };
-                Ok(InputPacket::Direction { dir })
+                let tick_number = r.u64_be()?;
+                Ok(InputPacket::Direction { dir, tick_number })
             }
             0x07 => Ok(InputPacket::Ping),
             0x08 => {

@@ -33,17 +33,14 @@ impl Input {
                 _ => return,
             };
             draw.borrow_mut().update_snake_dir(dir, None);
-            let packet = InputPacket::Direction { dir };
-            let array = Uint8Array::from(packet.serialize().as_slice());
-
-            WEBSOCKET.with(|ws| {
-                if let Some(websocket) = ws.borrow().as_ref() {
-                    _ = websocket.send_with_array_buffer(&array.buffer());
-                }
-            });
             if let Some(t) = CLOCK.with(|c| c.borrow().predicted_server_time(now_ms())) {
                 let tick = (t / TICK_MS).floor() as i64 + 1;
-                INPUTS.with(|q| q.borrow_mut().push_back((0, dir)));
+                INPUTS.with(|q| {
+                    if q.borrow_mut().len() >= 2 {
+                        return;
+                    }
+                    q.borrow_mut().push_back((0, dir))
+                });
             }
         });
 
@@ -60,8 +57,20 @@ pub fn take_turn(tick: i64) -> Option<Dir> {
     INPUTS.with(|q| {
         let mut q = q.borrow_mut();
         let mut turn = None;
-        while q.front().is_some_and(|&(tag, _)| tag <= tick) {
+        if q.front().is_some_and(|&(tag, _)| tag <= tick) {
             turn = q.pop_front().map(|(_, dir)| dir);
+
+            let packet = InputPacket::Direction {
+                dir: turn.unwrap(),
+                tick_number: tick as u64,
+            };
+            let array = Uint8Array::from(packet.serialize().as_slice());
+
+            WEBSOCKET.with(|ws| {
+                if let Some(websocket) = ws.borrow().as_ref() {
+                    _ = websocket.send_with_array_buffer(&array.buffer());
+                }
+            });
         }
         turn
     })
@@ -69,21 +78,21 @@ pub fn take_turn(tick: i64) -> Option<Dir> {
 
 #[wasm_bindgen]
 pub fn input(dir: String) {
-    let dir = match dir.as_str() {
-        "up" => Dir::Up,
-        "down" => Dir::Down,
-        "left" => Dir::Left,
-        "right" => Dir::Right,
-        _ => return,
-    };
-    let packet = InputPacket::Direction { dir };
-    WEBSOCKET.with(|ws| {
-        if let Some(websocket) = ws.borrow().as_ref() {
-            let array = Uint8Array::from(packet.serialize().as_slice());
-
-            if let Err(error) = websocket.send_with_array_buffer(&array.buffer()) {
-                web_sys::console::error_1(&error);
-            }
-        }
-    });
+    // let dir = match dir.as_str() {
+    //     "up" => Dir::Up,
+    //     "down" => Dir::Down,
+    //     "left" => Dir::Left,
+    //     "right" => Dir::Right,
+    //     _ => return,
+    // };
+    // let packet = InputPacket::Direction { dir };
+    // WEBSOCKET.with(|ws| {
+    //     if let Some(websocket) = ws.borrow().as_ref() {
+    //         let array = Uint8Array::from(packet.serialize().as_slice());
+    //
+    //         if let Err(error) = websocket.send_with_array_buffer(&array.buffer()) {
+    //             web_sys::console::error_1(&error);
+    //         }
+    //     }
+    // });
 }

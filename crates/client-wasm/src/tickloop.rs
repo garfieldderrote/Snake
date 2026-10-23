@@ -8,7 +8,7 @@ use crate::{
     clock::{CLOCK, INPUTS, TICK_MS, Ticker},
     draw::Draw,
     input::take_turn,
-    network::{INCOMING, handle_received_packet},
+    network::{INCOMING, LAST_RECEIVED_TICK, handle_received_packet},
     util::now_ms,
     world::ClientWorld,
 };
@@ -58,12 +58,14 @@ pub fn start_game_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>)
         lateness: Vec::new(),
     };
 
+    let mut next_tick_to_sim = None;
+
     *g.borrow_mut() = Some(Closure::new(move |timestamp| {
         let mut world = world.borrow_mut();
         let mut draw = draw.borrow_mut();
 
         for (recv, packet) in INCOMING.with(|q| std::mem::take(&mut *q.borrow_mut())) {
-            if let OutputPacket::TickFinished(sent_time) = &packet {
+            if let OutputPacket::TickFinished(sent_time, _tick) = &packet {
                 let st = *sent_time as f64;
                 let tick_no = (st / TICK_MS).round() as i64;
                 if tick_no % 10 == 0
@@ -85,22 +87,19 @@ pub fn start_game_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>)
         //log_1(&format!("t: {:?}", t).into());
         //log_1(&format!("player: {:?}", draw.get_client_id()).into());
         let now = now_ms();
-        if let Some(t) = t
-            && let Some(player) = draw.get_client_id()
-        {
-            let frame = ticker.poll(t);
+        if let Some(t) = t {
+            let target_frame = ticker.poll(t);
+            let mut current_tick = next_tick_to_sim.unwrap_or(target_frame.tick);
 
-            if frame.due > 0 {
-                stats.record(now, frame.alpha * TICK_MS);
-            }
-            if frame.due > 1 {
-                dlog!("[tick] catching up {} ticks", frame.due);
-            }
+            while current_tick <= target_frame.tick {
+                current_tick += 1;
+                let Some(player) = draw.get_client_id() else {
+                    break;
+                };
 
-            for k in (frame.tick - frame.due + 1)..=frame.tick {
-                // apply inputs that belong to tick k or earlier
-                let dir = take_turn(k);
+                let dir = take_turn(current_tick);
                 world.tick_snake(player, dir);
+
                 let Some(snake) = world.snake(&player) else {
                     break;
                 };
@@ -111,7 +110,9 @@ pub fn start_game_loop(world: Rc<RefCell<ClientWorld>>, draw: Rc<RefCell<Draw>>)
                 // world.apply_movements();
             }
             draw.draw_frame(&world, dt);
+            next_tick_to_sim = Some(current_tick);
         }
+
         //log_1(&"New Frame!".into());
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));

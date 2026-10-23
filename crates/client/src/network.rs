@@ -105,7 +105,7 @@ impl Network {
                 span.emit_color(0xFF0000);
                 world.remove_snake(player);
             }
-            OutputPacket::TickFinished(_) => {
+            OutputPacket::TickFinished(_, _) => {
                 let span = span!("Draw");
                 span.emit_color(0xFF0000);
                 world.apply_movements();
@@ -128,7 +128,11 @@ impl Network {
                 sleep(Duration::from_millis(50)).await;
                 input.fetch();
                 if let Some(dir) = input.get_dir() {
-                    let packet = InputPacket::Direction { dir }.serialize();
+                    let packet = InputPacket::Direction {
+                        dir,
+                        tick_number: 0,
+                    }
+                    .serialize();
                     _ = writer.write_all(&packet.len().to_be_bytes()).await;
                     _ = writer.write_all(packet.as_slice()).await;
                 }
