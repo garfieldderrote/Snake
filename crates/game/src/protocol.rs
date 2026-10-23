@@ -31,6 +31,7 @@ pub enum OutputPacket {
     Difference(Difference),
     TickFinished(u64),
     Handshake(PlayerId, Vec<(PlayerId, String)>),
+    Points(Vec<(PlayerId, u64)>),
     Pong,
 }
 
@@ -124,6 +125,13 @@ impl Serialize for OutputPacket {
                     result.extend_from_slice(&id.0.to_be_bytes());
                     result.extend_from_slice(&name.len().to_be_bytes());
                     result.extend_from_slice(&name.clone().into_bytes());
+                }
+            }
+            OutputPacket::Points(player_points) => {
+                result.push(0x09);
+                for (id, points) in player_points {
+                    result.extend_from_slice(&id.0.to_be_bytes());
+                    result.extend_from_slice(&points.to_be_bytes());
                 }
             }
         };
@@ -287,6 +295,14 @@ impl Deserialize for OutputPacket {
                     playernames.push((PlayerId(player), name));
                 }
                 OutputPacket::Handshake(playerid, playernames)
+            }
+            0x09 => {
+                let mut player_points = Vec::new();
+                while let Ok(player) = r.u64_be() {
+                    let points = r.u64_be()?;
+                    player_points.push((PlayerId(player), points));
+                }
+                OutputPacket::Points(player_points)
             }
             _ => {
                 return Err(DecodeError::InvalidPacketType(0x06));

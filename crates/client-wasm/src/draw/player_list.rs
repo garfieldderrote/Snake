@@ -46,7 +46,11 @@ impl PlayerListView {
             ctx: context,
         })
     }
-    pub fn draw(&self, players: &HashMap<PlayerId, String>) -> Result<(), JsValue> {
+    pub fn draw(
+        &self,
+        players: &HashMap<PlayerId, String>,
+        player_points: &HashMap<PlayerId, u64>,
+    ) -> Result<(), JsValue> {
         let dpr = web_sys::window().unwrap().device_pixel_ratio();
         let h = players.len() as f64 * ROW_H + PAD * 2.0;
 
@@ -74,11 +78,18 @@ impl PlayerListView {
             let cy = PAD + i as f64 * (ROW_H + NAME_GAP) + ROW_H / 2.0;
             let anim = HeadAnimation::default(Vec2::new(PAD + 8.0, cy));
             snake_draw.draw_snake_head(color, &anim);
+            let mut text = name.clone();
+            text.push_str(" : ");
+            if let Some(points) = player_points.get(player) {
+                text.push_str(&points.to_string());
+            } else {
+                text.push('0');
+            }
             self.ctx.set_font(FONT);
             self.ctx.set_text_align("left");
             self.ctx.set_text_baseline("middle");
             self.ctx.set_fill_style_str("#fff");
-            self.ctx.fill_text(name, PAD + HEAD_SIZE + 20.0, cy)?;
+            self.ctx.fill_text(&text, PAD + HEAD_SIZE + 20.0, cy)?;
         }
         Ok(())
     }

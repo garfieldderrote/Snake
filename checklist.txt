@@ -6,8 +6,39 @@
     - Rounds?
     - Kills?
     - Max Length?
-- PlayerNames + Leaderboard?
+- PlayerNames + Leaderboard? ✅
 
+- put player input directly into tick buffer for animation
+  -> better response time = better feel
+  -> input delay = margin, instead of margin + ping
+
+
+###############
+## Cool Idea ##
+###############
+
+- Multiple server behind one proxy
+  - multiple game modes with gimmicks -> inspo google snake
+  - proxy has list of available game modes
+      - Client can choose and proxy routes traffic to that server.
+  - proxy has local discovery port where servers can register
+      - transmit their port(+ip) and game mode.
+
+  -Client receives packet with list of all game modes
+    -> chooses one sends that to proxy
+    -> from there proxy behaves like the normal server
+  - direct connection with server also simple
+    -> server sends available game modes anyway
+
+- Game modes:
+  - Normal
+  - Invincible
+  - Walls -> needs client changes for rendering
+  
+  - Different ways to give points -> length, kills, time survived
+  - Different Speeds
+  - Board sizes Apple count
+  - maybe settings
 
 ###################
 ## Core Gameplay ##
